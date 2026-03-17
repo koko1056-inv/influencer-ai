@@ -1,0 +1,12 @@
+.env
+.env.local
+.env.local.tmp
+__pycache__/
+*.pyc
+output/
+logs/
+.vercel
+node_modules/
+.next/
+.DS_Store
+tsconfig.tsbuildinfo

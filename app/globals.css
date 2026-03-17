@@ -1,0 +1,52 @@
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+/* Selection */
+::selection {
+  background: #6366f140;
+  color: #e4e4e7;
+}
+
+/* Focus visible */
+*:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+/* Button hover effects */
+button:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Select styling */
+select option {
+  background: #18181b;
+  color: #e4e4e7;
+}
+
+/* Textarea resize handle */
+textarea {
+  resize: vertical;
+}
