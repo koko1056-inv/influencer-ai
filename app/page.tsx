@@ -53,7 +53,23 @@ interface TrendItem {
   image_keywords: string;
 }
 
-type View = "dashboard" | "create" | "accounts" | "history" | "trends" | "settings";
+interface LinkedInCachedPost {
+  id: string;
+  buffer_post_id: string;
+  text: string;
+  sent_at: string | null;
+  impressions: number;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  clicks: number;
+  engagement_rate: number;
+  is_top_performer: boolean;
+  style_tags: string[];
+}
+
+type View = "dashboard" | "create" | "linkedin" | "accounts" | "history" | "trends" | "settings";
 
 interface OnboardingData {
   geminiKey: string;
@@ -168,6 +184,13 @@ const Icon = {
   fire: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 12c2-2.96 0-7-1-8 0 3.038-1.773 4.741-3 6-1.226 1.26-2 3.24-2 5a6 6 0 1 0 12 0c0-1.532-1.056-3.94-2-5-1.786 3-2.791 3-4 2z" />
+    </svg>
+  ),
+  linkedin: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
+      <rect x="2" y="9" width="4" height="12" />
+      <circle cx="4" cy="4" r="2" />
     </svg>
   ),
 };
@@ -570,6 +593,23 @@ export default function Dashboard() {
   const [trendLoading, setTrendLoading] = useState(false);
   const [trendFetchedAt, setTrendFetchedAt] = useState<string | null>(null);
 
+  // LinkedIn post state
+  const [liTopic, setLiTopic] = useState("");
+  const [liStyle, setLiStyle] = useState("thought_leadership");
+  const [liRefImage, setLiRefImage] = useState<string | null>(null);
+  const [liCaption, setLiCaption] = useState("");
+  const [liHeadline, setLiHeadline] = useState("");
+  const [liImage, setLiImage] = useState<string | null>(null);
+  const [liImageUrl, setLiImageUrl] = useState<string | null>(null);
+  const [liPostId, setLiPostId] = useState<string | null>(null);
+  const [liGenerating, setLiGenerating] = useState(false);
+  const [liPosting, setLiPosting] = useState(false);
+  const [liTab, setLiTab] = useState<"create" | "analytics">("create");
+  const [liPastPosts, setLiPastPosts] = useState<LinkedInCachedPost[]>([]);
+  const [liSyncing, setLiSyncing] = useState(false);
+  const [liEditingPost, setLiEditingPost] = useState<LinkedInCachedPost | null>(null);
+  const [liSavingMetrics, setLiSavingMetrics] = useState(false);
+
   // Account form state
   const [showAccountForm, setShowAccountForm] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Partial<Account> | null>(null);
@@ -943,6 +983,136 @@ export default function Dashboard() {
     showToast(`テーマ「${trend.title}」を投稿作成に反映しました${trend.image_url ? "（参照画像も設定済み）" : ""}`, "info");
   };
 
+  /* ─── LinkedIn Post ─── */
+  const handleLinkedInGenerate = async () => {
+    if (!liTopic.trim()) {
+      showToast("トピックを入力してください", "error");
+      return;
+    }
+    setLiGenerating(true);
+    setLiCaption("");
+    setLiHeadline("");
+    setLiImage(null);
+    setLiImageUrl(null);
+    setLiPostId(null);
+    try {
+      const data = await api<{
+        post_text: string;
+        headline: string;
+        image_prompt: string;
+        image_data: string | null;
+        image_url: string | null;
+        post_id: string | null;
+      }>("/api/generate-linkedin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: liTopic,
+          style: liStyle,
+          reference_image: liRefImage,
+        }),
+      });
+      setLiCaption(data.post_text);
+      setLiHeadline(data.headline);
+      setLiImage(data.image_data);
+      setLiImageUrl(data.image_url);
+      setLiPostId(data.post_id);
+      showToast("LinkedIn投稿を生成しました", "success");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "生成に失敗しました";
+      showToast(msg, "error");
+    }
+    setLiGenerating(false);
+  };
+
+  const handleLinkedInPost = async () => {
+    if (!liPostId) return;
+    setLiPosting(true);
+    try {
+      const urlToSend = liImageUrl || liImage || undefined;
+      await api("/api/post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          post_id: liPostId,
+          image_urls: urlToSend ? [urlToSend] : undefined,
+        }),
+      });
+      showToast("LinkedInに投稿しました！", "success");
+      setLiCaption("");
+      setLiHeadline("");
+      setLiImage(null);
+      setLiImageUrl(null);
+      setLiPostId(null);
+      fetchPosts();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "投稿に失敗しました";
+      showToast(msg, "error");
+    }
+    setLiPosting(false);
+  };
+
+  const handleLiSyncPosts = async () => {
+    setLiSyncing(true);
+    try {
+      await api<{ synced: number }>("/api/linkedin-analytics?action=sync");
+      const data = await api<{ posts: LinkedInCachedPost[] }>("/api/linkedin-analytics?action=posts");
+      setLiPastPosts(data.posts);
+      showToast(`${data.posts.length}件のLinkedIn投稿を同期しました`, "success");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "同期に失敗しました";
+      showToast(msg, "error");
+    }
+    setLiSyncing(false);
+  };
+
+  const handleLiFetchPosts = async () => {
+    try {
+      const data = await api<{ posts: LinkedInCachedPost[] }>("/api/linkedin-analytics?action=posts");
+      setLiPastPosts(data.posts);
+    } catch { /* ignore */ }
+  };
+
+  const handleLiSaveMetrics = async (post: LinkedInCachedPost) => {
+    setLiSavingMetrics(true);
+    try {
+      await api("/api/linkedin-analytics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: post.id,
+          impressions: post.impressions,
+          views: post.views,
+          likes: post.likes,
+          comments: post.comments,
+          shares: post.shares,
+          clicks: post.clicks,
+          style_tags: post.style_tags,
+          is_top_performer: post.is_top_performer,
+        }),
+      });
+      showToast("エンゲージメントデータを保存しました", "success");
+      setLiEditingPost(null);
+      handleLiFetchPosts();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "保存に失敗しました";
+      showToast(msg, "error");
+    }
+    setLiSavingMetrics(false);
+  };
+
+  const handleLiRefImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      showToast("画像ファイルを選択してください", "error");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setLiRefImage(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
   /* ═══════════════════════════════════════════════════
      Render: Loading
      ═══════════════════════════════════════════════════ */
@@ -1198,6 +1368,7 @@ export default function Dashboard() {
   const navItems: { id: View; label: string; icon: React.ReactNode }[] = [
     { id: "dashboard", label: "ダッシュボード", icon: Icon.dashboard },
     { id: "create", label: "投稿を作成", icon: Icon.create },
+    { id: "linkedin", label: "LinkedIn投稿", icon: Icon.linkedin },
     { id: "trends", label: "トレンドリサーチ", icon: Icon.trends },
     { id: "accounts", label: "アカウント管理", icon: Icon.accounts },
     { id: "history", label: "投稿履歴", icon: Icon.history },
@@ -1669,6 +1840,490 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
+          </>
+        )}
+
+        {/* ─── LinkedIn Post View ─── */}
+        {view === "linkedin" && (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+              <div>
+                <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 4, color: "#f4f4f5" }}>
+                  LinkedIn投稿
+                </h1>
+                <p style={{ color: "#71717a" }}>
+                  過去の投稿データを分析し、パフォーマンスを改善
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 4, background: "#0f0f18", borderRadius: 10, padding: 4, border: "1px solid #1a1a24" }}>
+                {[
+                  { id: "create" as const, label: "投稿作成" },
+                  { id: "analytics" as const, label: "分析・改善" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    style={{
+                      padding: "8px 18px",
+                      borderRadius: 8,
+                      border: "none",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      background: liTab === tab.id ? "#0A66C2" : "transparent",
+                      color: liTab === tab.id ? "#fff" : "#71717a",
+                      transition: "all 0.15s",
+                    }}
+                    onClick={() => {
+                      setLiTab(tab.id);
+                      if (tab.id === "analytics" && liPastPosts.length === 0) handleLiFetchPosts();
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Analytics Tab */}
+            {liTab === "analytics" && (
+              <div>
+                {/* Sync bar */}
+                <div style={{ ...s.card, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "#f4f4f5" }}>
+                      過去のLinkedIn投稿 ({liPastPosts.length}件)
+                    </span>
+                    <span style={{ fontSize: 12, color: "#52525b", marginLeft: 12 }}>
+                      エンゲージメントデータを入力すると、AIが高パフォーマンスの傾向を学習します
+                    </span>
+                  </div>
+                  <button
+                    style={{ ...s.btnPrimary, background: "linear-gradient(135deg, #0A66C2, #004182)" }}
+                    onClick={handleLiSyncPosts}
+                    disabled={liSyncing}
+                  >
+                    {liSyncing ? <div style={s.spinner} /> : Icon.refresh}
+                    {liSyncing ? "同期中..." : "Bufferから同期"}
+                  </button>
+                </div>
+
+                {/* Stats summary */}
+                {liPastPosts.some((p) => p.impressions > 0) && (
+                  <div style={{ ...s.statGrid, marginTop: 0 }}>
+                    <div style={s.statCard("#0A66C2")}>
+                      <div style={{ fontSize: 12, color: "#71717a", marginBottom: 4 }}>平均エンゲージメント率</div>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: "#60a5fa" }}>
+                        {(liPastPosts.filter(p => p.engagement_rate > 0).reduce((s, p) => s + p.engagement_rate, 0) / Math.max(liPastPosts.filter(p => p.engagement_rate > 0).length, 1)).toFixed(1)}%
+                      </div>
+                    </div>
+                    <div style={s.statCard("#22c55e")}>
+                      <div style={{ fontSize: 12, color: "#71717a", marginBottom: 4 }}>合計インプレッション</div>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: "#4ade80" }}>
+                        {liPastPosts.reduce((s, p) => s + p.impressions, 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={s.statCard("#f59e0b")}>
+                      <div style={{ fontSize: 12, color: "#71717a", marginBottom: 4 }}>合計エンゲージメント</div>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: "#fbbf24" }}>
+                        {liPastPosts.reduce((s, p) => s + p.likes + p.comments + p.shares, 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={s.statCard("#8b5cf6")}>
+                      <div style={{ fontSize: 12, color: "#71717a", marginBottom: 4 }}>データ入力済み</div>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: "#a78bfa" }}>
+                        {liPastPosts.filter(p => p.impressions > 0).length}/{liPastPosts.length}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Editing modal */}
+                {liEditingPost && (
+                  <div style={{ ...s.card, border: "2px solid #0A66C2", marginBottom: 20 }}>
+                    <h3 style={{ ...s.cardHeader, fontSize: 15 }}>エンゲージメントデータ入力</h3>
+                    <div style={{
+                      padding: 12,
+                      background: "#0c0c12",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      color: "#a1a1aa",
+                      marginBottom: 16,
+                      maxHeight: 100,
+                      overflow: "hidden",
+                      lineHeight: 1.6,
+                    }}>
+                      {liEditingPost.text.substring(0, 200)}...
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }}>
+                      {[
+                        { key: "impressions", label: "インプレッション", icon: "👀" },
+                        { key: "likes", label: "いいね", icon: "👍" },
+                        { key: "comments", label: "コメント", icon: "💬" },
+                        { key: "shares", label: "シェア", icon: "🔄" },
+                        { key: "clicks", label: "クリック", icon: "🔗" },
+                        { key: "views", label: "閲覧数", icon: "📊" },
+                      ].map((field) => (
+                        <div key={field.key} style={s.formGroup}>
+                          <label style={{ ...s.label, fontSize: 12 }}>{field.icon} {field.label}</label>
+                          <input
+                            type="number"
+                            style={{ ...s.input, fontSize: 14 }}
+                            value={(liEditingPost as any)[field.key] || 0}
+                            onChange={(e) => setLiEditingPost({
+                              ...liEditingPost,
+                              [field.key]: parseInt(e.target.value) || 0,
+                            })}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div style={s.formGroup}>
+                      <label style={{ ...s.label, fontSize: 12 }}>スタイルタグ（カンマ区切り）</label>
+                      <input
+                        style={s.input}
+                        placeholder="例: ストーリー, AI, Before/After, 箇条書き"
+                        value={(liEditingPost.style_tags || []).join(", ")}
+                        onChange={(e) => setLiEditingPost({
+                          ...liEditingPost,
+                          style_tags: e.target.value.split(",").map((t) => t.trim()).filter(Boolean),
+                        })}
+                      />
+                    </div>
+                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                      <button
+                        style={{ ...s.btnPrimary, background: "linear-gradient(135deg, #0A66C2, #004182)" }}
+                        onClick={() => handleLiSaveMetrics(liEditingPost)}
+                        disabled={liSavingMetrics}
+                      >
+                        {liSavingMetrics ? <div style={s.spinner} /> : Icon.check}
+                        保存
+                      </button>
+                      <button style={s.btnSecondary} onClick={() => setLiEditingPost(null)}>
+                        キャンセル
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Posts list */}
+                {liPastPosts.length === 0 ? (
+                  <div style={{ ...s.card, ...s.empty }}>
+                    <p style={{ fontSize: 14, marginBottom: 12 }}>まだ投稿データがありません</p>
+                    <p style={{ fontSize: 12 }}>「Bufferから同期」ボタンでLinkedInの過去投稿を取得してください</p>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {liPastPosts.map((post) => (
+                      <div
+                        key={post.id}
+                        style={{
+                          ...s.card,
+                          marginBottom: 0,
+                          cursor: "pointer",
+                          border: post.is_top_performer ? "1px solid #0A66C240" : "1px solid #1a1a24",
+                          background: post.is_top_performer ? "#0A66C208" : "#0f0f18",
+                        }}
+                        onClick={() => setLiEditingPost({ ...post })}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{
+                              fontSize: 13,
+                              color: "#d4d4d8",
+                              lineHeight: 1.6,
+                              overflow: "hidden",
+                              display: "-webkit-box",
+                              WebkitLineClamp: 3,
+                              WebkitBoxOrient: "vertical" as any,
+                            }}>
+                              {post.text}
+                            </div>
+                            <div style={{ fontSize: 11, color: "#52525b", marginTop: 8 }}>
+                              {post.sent_at ? new Date(post.sent_at).toLocaleDateString("ja-JP") : "日付不明"}
+                              {post.style_tags && post.style_tags.length > 0 && (
+                                <span style={{ marginLeft: 8 }}>
+                                  {post.style_tags.map((tag, i) => (
+                                    <span key={i} style={{
+                                      ...s.tag("#0A66C2"),
+                                      marginLeft: 4,
+                                      fontSize: 10,
+                                    }}>{tag}</span>
+                                  ))}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {post.impressions > 0 ? (
+                            <div style={{ marginLeft: 16, textAlign: "right", flexShrink: 0 }}>
+                              <div style={{ fontSize: 20, fontWeight: 800, color: post.engagement_rate > 3 ? "#4ade80" : post.engagement_rate > 1 ? "#fbbf24" : "#f4f4f5" }}>
+                                {post.engagement_rate.toFixed(1)}%
+                              </div>
+                              <div style={{ fontSize: 10, color: "#71717a" }}>エンゲージメント率</div>
+                              <div style={{ fontSize: 11, color: "#52525b", marginTop: 4 }}>
+                                👀{post.impressions} 👍{post.likes} 💬{post.comments}
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ marginLeft: 16, flexShrink: 0 }}>
+                              <span style={s.tag("#6366f1")}>データ未入力</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Create Tab */}
+            {liTab === "create" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+              {/* Left: Generation form */}
+              <div style={s.card}>
+                <h3 style={s.cardHeader}>
+                  <span style={{ color: "#0A66C2" }}>LinkedIn</span> 投稿設定
+                </h3>
+                <div style={s.formGroup}>
+                  <label style={s.label}>投稿トピック</label>
+                  <textarea
+                    style={{ ...s.input, minHeight: 80, resize: "vertical" as const }}
+                    placeholder="例: GPT-4oの登場でAIアプリ開発はどう変わるか、AIスタートアップの資金調達トレンド..."
+                    value={liTopic}
+                    onChange={(e) => setLiTopic(e.target.value)}
+                  />
+                  <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
+                    AI関連のニュースやビジネストピックを入力してください
+                  </p>
+                </div>
+                <div style={s.formGroup}>
+                  <label style={s.label}>投稿スタイル</label>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {[
+                      { id: "thought_leadership", label: "ソートリーダーシップ", desc: "洞察・意見" },
+                      { id: "news_commentary", label: "ニュース解説", desc: "最新動向" },
+                      { id: "case_study", label: "ケーススタディ", desc: "事例・実績" },
+                      { id: "tips_howto", label: "Tips・ハウツー", desc: "実践的ノウハウ" },
+                    ].map((st) => (
+                      <button
+                        key={st.id}
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: 10,
+                          border: liStyle === st.id ? "2px solid #0A66C2" : "1px solid #2a2a3a",
+                          background: liStyle === st.id ? "#0A66C210" : "#0c0c12",
+                          color: liStyle === st.id ? "#60a5fa" : "#a1a1aa",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          textAlign: "left" as const,
+                          transition: "all 0.15s",
+                        }}
+                        onClick={() => setLiStyle(st.id)}
+                      >
+                        <div>{st.label}</div>
+                        <div style={{ fontSize: 11, fontWeight: 400, color: "#52525b", marginTop: 2 }}>{st.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={s.formGroup}>
+                  <label style={s.label}>参照画像（オプション）</label>
+                  <div
+                    style={{
+                      border: "2px dashed #2a2a3a",
+                      borderRadius: 10,
+                      padding: liRefImage ? 8 : 24,
+                      textAlign: "center",
+                      cursor: "pointer",
+                      background: "#0c0c12",
+                    }}
+                    onClick={() => document.getElementById("li-ref-image-input")?.click()}
+                  >
+                    <input
+                      id="li-ref-image-input"
+                      type="file"
+                      accept="image/*"
+                      style={{ display: "none" }}
+                      onChange={handleLiRefImageUpload}
+                    />
+                    {liRefImage ? (
+                      <div style={{ position: "relative" }}>
+                        <img
+                          src={liRefImage}
+                          alt="参照画像"
+                          style={{ maxWidth: "100%", maxHeight: 120, borderRadius: 8, objectFit: "cover" as const }}
+                        />
+                        <button
+                          style={{
+                            position: "absolute",
+                            top: 4,
+                            right: 4,
+                            background: "#ef4444",
+                            border: "none",
+                            borderRadius: 6,
+                            color: "#fff",
+                            padding: "2px 8px",
+                            fontSize: 12,
+                            cursor: "pointer",
+                          }}
+                          onClick={(e) => { e.stopPropagation(); setLiRefImage(null); }}
+                        >
+                          削除
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ color: "#52525b", marginBottom: 4 }}>{Icon.upload}</div>
+                        <p style={{ fontSize: 13, color: "#52525b" }}>クリックして画像をアップロード</p>
+                      </>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
+                    スクリーンショットやプレゼン資料の画像など、投稿に関連する画像
+                  </p>
+                </div>
+                <button
+                  style={{
+                    ...s.btnPrimary,
+                    width: "100%",
+                    justifyContent: "center",
+                    background: "linear-gradient(135deg, #0A66C2, #004182)",
+                    opacity: liGenerating || !liTopic.trim() ? 0.5 : 1,
+                    pointerEvents: liGenerating || !liTopic.trim() ? "none" : "auto",
+                  }}
+                  onClick={handleLinkedInGenerate}
+                  disabled={liGenerating || !liTopic.trim()}
+                >
+                  {liGenerating ? <div style={s.spinner} /> : Icon.sparkle}
+                  {liGenerating ? "生成中..." : "LinkedIn投稿を生成"}
+                </button>
+              </div>
+
+              {/* Right: Preview */}
+              <div style={s.card}>
+                <h3 style={s.cardHeader}>プレビュー</h3>
+                {!liCaption && !liGenerating ? (
+                  <div style={s.empty}>
+                    <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}>{Icon.linkedin}</div>
+                    <p style={{ fontSize: 14 }}>LinkedIn投稿のプレビューがここに表示されます</p>
+                    <p style={{ fontSize: 12, color: "#3f3f46", marginTop: 8 }}>
+                      プロフェッショナルな長文投稿 + AI関連画像を生成
+                    </p>
+                  </div>
+                ) : liGenerating ? (
+                  <div style={{ ...s.empty, display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                    <div style={s.spinner} />
+                    <p style={{ fontSize: 14, color: "#71717a" }}>LinkedIn投稿を生成しています...</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* LinkedIn風プレビュー */}
+                    <div style={{
+                      background: "#14141e",
+                      borderRadius: 12,
+                      border: "1px solid #1a1a24",
+                      overflow: "hidden",
+                    }}>
+                      {/* Header */}
+                      <div style={{ padding: "16px 16px 12px", display: "flex", gap: 12, alignItems: "center" }}>
+                        <div style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 22,
+                          background: "linear-gradient(135deg, #0A66C2, #004182)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 18,
+                          fontWeight: 700,
+                          color: "#fff",
+                        }}>
+                          心
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: "#f4f4f5" }}>心夢 松尾</div>
+                          <div style={{ fontSize: 12, color: "#71717a" }}>AI & Technology | Startup Founder</div>
+                        </div>
+                      </div>
+                      {/* Content */}
+                      <div style={{
+                        padding: "0 16px 16px",
+                        whiteSpace: "pre-wrap",
+                        fontSize: 13,
+                        lineHeight: 1.8,
+                        color: "#d4d4d8",
+                        maxHeight: 400,
+                        overflowY: "auto" as const,
+                      }}>
+                        {liCaption}
+                      </div>
+                      {/* Image */}
+                      {(liImage || liImageUrl) && (
+                        <img
+                          src={liImageUrl || liImage || ""}
+                          alt="LinkedIn post"
+                          style={{ width: "100%", maxHeight: 300, objectFit: "cover" as const }}
+                        />
+                      )}
+                      {/* Engagement bar */}
+                      <div style={{
+                        padding: "12px 16px",
+                        borderTop: "1px solid #1a1a24",
+                        display: "flex",
+                        gap: 24,
+                        fontSize: 12,
+                        color: "#71717a",
+                      }}>
+                        <span>👍 いいね!</span>
+                        <span>💬 コメント</span>
+                        <span>🔄 シェア</span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
+                      <button
+                        style={{
+                          ...s.btnPrimary,
+                          flex: 1,
+                          justifyContent: "center",
+                          background: "linear-gradient(135deg, #0A66C2, #004182)",
+                          opacity: liPosting ? 0.5 : 1,
+                        }}
+                        onClick={handleLinkedInPost}
+                        disabled={liPosting}
+                      >
+                        {liPosting ? <div style={s.spinner} /> : Icon.send}
+                        {liPosting ? "投稿中..." : "LinkedInに投稿"}
+                      </button>
+                      <button
+                        style={s.btnSecondary}
+                        onClick={handleLinkedInGenerate}
+                      >
+                        {Icon.refresh} 再生成
+                      </button>
+                    </div>
+
+                    {/* Copy button */}
+                    <button
+                      style={{
+                        ...s.btnSmall,
+                        width: "100%",
+                        justifyContent: "center",
+                        marginTop: 8,
+                      }}
+                      onClick={() => {
+                        navigator.clipboard.writeText(liCaption);
+                        showToast("テキストをコピーしました", "info");
+                      }}
+                    >
+                      テキストをコピー
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+            )}
           </>
         )}
 

@@ -296,6 +296,125 @@ export async function generateMultipleImages(
   return results;
 }
 
+export interface LinkedInGeneratedContent {
+  post_text: string;
+  image_prompt: string;
+  headline: string;
+}
+
+/**
+ * LinkedIn専用テキスト生成
+ * プロフェッショナルなLinkedIn投稿スタイルに特化
+ */
+export async function generateLinkedInPost(
+  topic: string,
+  style: string = "thought_leadership",
+  apiKey?: string,
+  referenceImageUrl?: string | null
+): Promise<LinkedInGeneratedContent> {
+  const key = apiKey || (await getGeminiApiKey());
+  const genAI = createGenAI(key);
+
+  const styleGuide: Record<string, string> = {
+    thought_leadership: `
+- 冒頭に読者の注意を引くフック（質問や大胆な主張）を置く
+- 自身の経験や具体的なデータに基づいた洞察を共有
+- 箇条書きや短い段落で読みやすくする
+- 最後にCall to Action（質問やディスカッション誘導）を入れる
+- プロフェッショナルだが親しみやすいトーン`,
+    news_commentary: `
+- 最新ニュースや業界動向に対する独自の見解を述べる
+- 「なぜこれが重要なのか」を3つの視点で解説
+- 自分の業界経験と結びつけた考察
+- フォロワーに意見を求める形で締める`,
+    case_study: `
+- 具体的な課題→アプローチ→結果の構成
+- 数字やデータを積極的に使う
+- 学びや教訓を明確にする
+- 他の人にも適用できるポイントを示す`,
+    tips_howto: `
+- 実践的なTips を番号付きリストで紹介
+- 各Tipに短い説明と具体例を添える
+- すぐに行動に移せる内容にする
+- 「保存して後で見返してください」的なCTAを入れる`,
+  };
+
+  const selectedStyle = styleGuide[style] || styleGuide.thought_leadership;
+
+  const systemPrompt = `あなたは「心夢 松尾」（Kokomu Matsuo）としてLinkedIn投稿を作成するプロフェッショナルなライターです。
+
+【心夢 松尾のプロフィール】
+- AI・テクノロジー分野のビジネスリーダー/起業家
+- 最新のAI技術やビジネス活用に精通
+- スタートアップ・イノベーション・DXに関心が高い
+- 日本語でLinkedIn投稿を行う
+- プロフェッショナルでありながら、個人の経験や考えを織り交ぜた親しみやすい文体
+
+【LinkedIn投稿のスタイル】
+${selectedStyle}
+
+【重要なルール】
+- LinkedInにふさわしいプロフェッショナルな内容にする
+- 1000〜2000文字程度の充実した投稿にする（Instagramの短文とは違う）
+- 適切な改行と段落分けで読みやすくする
+- ハッシュタグは最後に3〜5個（日本語＋英語ミックス）
+- 絵文字は控えめに使用（ポイントマーカーとして）
+- 「いいね」「コメント」「シェア」を促すエンゲージメント要素を含める
+- Instagramのカジュアルな投稿とは明確に差別化する`;
+
+  const hasReference = !!referenceImageUrl;
+  let imageContext = "";
+  if (hasReference) {
+    imageContext = `\n\n【参照画像について】
+添付された画像の内容を分析し、投稿の中で自然に言及してください。
+画像生成プロンプトには、この画像のテーマに関連したプロフェッショナルなビジュアルを生成するよう指示してください。`;
+  }
+
+  const userPrompt = `===== LinkedIn投稿生成リクエスト =====
+
+【投稿トピック】: ${topic}
+${imageContext}
+
+上記トピックについて、LinkedInにふさわしいプロフェッショナルな投稿を作成してください。
+
+また、この投稿に添える画像を生成するための英語の画像生成プロンプトも作成してください。
+LinkedInの投稿画像として適切な、プロフェッショナルでクリーンなビジュアルにしてください。
+（例: テクノロジーのコンセプトアート、ビジネスシーン、データビジュアライゼーション、インフォグラフィック風など）
+
+以下のJSON形式で出力してください（他の文字は不要）:
+{"post_text": "LinkedIn投稿テキスト（改行あり）", "image_prompt": "英語の画像生成プロンプト", "headline": "投稿の見出し（20文字以内）"}`;
+
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.0-flash",
+    systemInstruction: systemPrompt,
+  });
+
+  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
+
+  if (hasReference && referenceImageUrl) {
+    const refData = await fetchImageAsBase64(referenceImageUrl);
+    if (refData) {
+      parts.push(
+        { text: "【参照画像】この画像のテーマを投稿に反映してください：" },
+        { inlineData: { mimeType: refData.mimeType, data: refData.base64 } }
+      );
+    }
+  }
+
+  parts.push({ text: userPrompt });
+
+  const result = await model.generateContent({
+    contents: [{ role: "user", parts }],
+    generationConfig: {
+      responseMimeType: "application/json",
+      temperature: 0.85,
+    },
+  });
+
+  const text = result.response.text();
+  return JSON.parse(text) as LinkedInGeneratedContent;
+}
+
 /** URLまたはdata URLから画像をbase64で取得 */
 async function fetchImageAsBase64(
   url: string
