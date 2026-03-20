@@ -76,7 +76,7 @@ interface LinkedInCachedPost {
   style_tags: string[];
 }
 
-type View = "dashboard" | "create" | "linkedin" | "accounts" | "history" | "trends" | "settings";
+type View = "dashboard" | "create" | "instagram" | "tiktok" | "x" | "linkedin" | "accounts" | "history" | "trends" | "settings";
 
 interface OnboardingData {
   geminiKey: string;
@@ -198,6 +198,24 @@ const Icon = {
       <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
       <rect x="2" y="9" width="4" height="12" />
       <circle cx="4" cy="4" r="2" />
+    </svg>
+  ),
+  instagram: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+    </svg>
+  ),
+  tiktok: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
+    </svg>
+  ),
+  x: (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4l11.733 16h4.267l-11.733-16z" />
+      <path d="M4 20l6.768-6.768M20 4l-6.768 6.768" />
     </svg>
   ),
 };
@@ -1510,6 +1528,9 @@ export default function Dashboard() {
   const navItems: { id: View; label: string; icon: React.ReactNode }[] = [
     { id: "dashboard", label: "ダッシュボード", icon: Icon.dashboard },
     { id: "create", label: "投稿を作成", icon: Icon.create },
+    { id: "instagram", label: "Instagram投稿", icon: Icon.instagram },
+    { id: "tiktok", label: "TikTok投稿", icon: Icon.tiktok },
+    { id: "x", label: "X投稿", icon: Icon.x },
     { id: "linkedin", label: "LinkedIn投稿", icon: Icon.linkedin },
     { id: "trends", label: "トレンドリサーチ", icon: Icon.trends },
     { id: "accounts", label: "アカウント管理", icon: Icon.accounts },
@@ -1538,7 +1559,15 @@ export default function Dashboard() {
             <button
               key={item.id}
               style={s.navItem(view === item.id)}
-              onClick={() => setView(item.id)}
+              onClick={() => {
+                setView(item.id);
+                const platformMap: Record<string, string> = { instagram: "instagram", tiktok: "tiktok", x: "twitter" };
+                const pf = platformMap[item.id];
+                if (pf) {
+                  const first = accounts.find((a) => a.platform === pf);
+                  if (first) setSelectedAccountId(first.id);
+                }
+              }}
               onMouseEnter={(e) => {
                 if (view !== item.id) e.currentTarget.style.color = "#d4d4d8";
               }}
@@ -1720,12 +1749,32 @@ export default function Dashboard() {
         )}
 
         {/* ─── Create Post View ─── */}
-        {view === "create" && (
+        {(view === "create" || view === "instagram" || view === "tiktok" || view === "x") && (() => {
+          const platformFilter = view === "instagram" ? "instagram" : view === "tiktok" ? "tiktok" : view === "x" ? "twitter" : null;
+          const platformTitle = view === "instagram" ? "Instagram投稿" : view === "tiktok" ? "TikTok投稿" : view === "x" ? "X投稿" : "投稿を作成";
+          const platformColor = view === "instagram" ? "#E1306C" : view === "tiktok" ? "#00f2ea" : view === "x" ? "#1DA1F2" : "#6366f1";
+          const filteredAccounts = platformFilter ? accounts.filter((a) => a.platform === platformFilter) : accounts;
+          return (
           <>
             <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 4, color: "#f4f4f5" }}>
-              投稿を作成
+              {platformFilter && <span style={{ color: platformColor, marginRight: 8 }}>{view === "instagram" ? Icon.instagram : view === "tiktok" ? Icon.tiktok : Icon.x}</span>}
+              {platformTitle}
             </h1>
-            <p style={{ color: "#71717a", marginBottom: 28 }}>AIでキャプションと画像を生成</p>
+            <p style={{ color: "#71717a", marginBottom: 28 }}>
+              {platformFilter
+                ? `${PLATFORM_LABELS[platformFilter]}アカウントの投稿を作成`
+                : "AIでキャプションと画像を生成"}
+            </p>
+            {platformFilter && filteredAccounts.length === 0 && (
+              <div style={{ ...s.card, textAlign: "center", padding: 40, marginBottom: 24 }}>
+                <p style={{ fontSize: 16, color: "#71717a", marginBottom: 16 }}>
+                  {PLATFORM_LABELS[platformFilter]}のアカウントがまだ登録されていません
+                </p>
+                <button style={s.btnPrimary} onClick={() => setView("accounts")}>
+                  {Icon.plus} アカウントを追加
+                </button>
+              </div>
+            )}
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
               {/* Left: Generation form */}
@@ -1768,7 +1817,7 @@ export default function Dashboard() {
                     onChange={(e) => setSelectedAccountId(e.target.value)}
                   >
                     <option value="">アカウントを選択...</option>
-                    {accounts.map((acc) => (
+                    {filteredAccounts.map((acc) => (
                       <option key={acc.id} value={acc.id}>
                         {acc.name} ({PLATFORM_LABELS[acc.platform]})
                       </option>
@@ -2325,7 +2374,8 @@ export default function Dashboard() {
               </div>
             </div>
           </>
-        )}
+          );
+        })()}
 
         {/* ─── LinkedIn Post View ─── */}
         {view === "linkedin" && (
