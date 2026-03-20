@@ -108,7 +108,6 @@ export async function POST(req: NextRequest) {
       size: size || "1080x1920",
       seconds: seconds || 8,
       apiKey: openaiApiKey,
-      referenceImageUrl: reference_image || undefined,
     });
 
     // ハッシュタグを抽出

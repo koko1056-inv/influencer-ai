@@ -1,6 +1,5 @@
 import OpenAI from "openai";
 import { supabase } from "@/lib/supabase";
-import { uploadImageFromBase64 } from "@/lib/storage";
 
 /** Supabase app_settings → env変数 の順でAPIキーを取得 */
 export async function getOpenAIApiKey(): Promise<string> {
@@ -41,28 +40,14 @@ export async function createVideo(
     size?: "1280x720" | "1920x1080" | "1080x1920" | "848x480" | "480x848";
     seconds?: 8 | 20;
     apiKey?: string;
-    referenceImageUrl?: string;
   }
 ): Promise<{ videoId: string; status: string }> {
   const key = options?.apiKey || (await getOpenAIApiKey());
   const openai = new OpenAI({ apiKey: key });
 
-  const input: any[] = [
-    { type: "text", text: prompt },
-  ];
-  if (options?.referenceImageUrl) {
-    const resolvedUrl = await resolveImageUrl(options.referenceImageUrl);
-    if (resolvedUrl) {
-      input.push({
-        type: "image_url",
-        image_url: resolvedUrl,
-      });
-    }
-  }
-
   const video = await openai.videos.create({
     model: options?.model || "sora-2",
-    input,
+    prompt,
     // @ts-expect-error - SDK types may not include all valid sizes
     size: options?.size || "1080x1920",
     duration: options?.seconds || 8,
@@ -127,16 +112,6 @@ export async function downloadAndUploadVideo(
   return pubUrl.publicUrl;
 }
 
-/** data URLをSupabaseにアップロードしてpublic URLに変換 */
-async function resolveImageUrl(imageUrl: string): Promise<string | null> {
-  if (imageUrl.startsWith("data:")) {
-    const publicUrl = await uploadImageFromBase64(imageUrl, `sora-ref-${Date.now()}`);
-    return publicUrl;
-  }
-  // 既にhttpのURLならそのまま返す
-  return imageUrl;
-}
-
 /**
  * 動画生成＆ポーリング＆ダウンロードをまとめて実行
  */
@@ -147,30 +122,15 @@ export async function generateVideoFull(
     size?: "1280x720" | "1920x1080" | "1080x1920" | "848x480" | "480x848";
     seconds?: 8 | 20;
     apiKey?: string;
-    referenceImageUrl?: string;
   }
 ): Promise<{ videoUrl: string; videoId: string }> {
   const key = options?.apiKey || (await getOpenAIApiKey());
   const openai = new OpenAI({ apiKey: key });
 
-  // ジョブ作成
-  const input: any[] = [
-    { type: "text", text: prompt },
-  ];
-  if (options?.referenceImageUrl) {
-    // data URLの場合はSupabaseにアップロードしてpublic URLに変換
-    const resolvedUrl = await resolveImageUrl(options.referenceImageUrl);
-    if (resolvedUrl) {
-      input.push({
-        type: "image_url",
-        image_url: resolvedUrl,
-      });
-    }
-  }
-
+  // ジョブ作成（Sora APIはprompt文字列を使用）
   const job = await openai.videos.create({
     model: options?.model || "sora-2",
-    input,
+    prompt,
     // @ts-expect-error - SDK types may not include all valid sizes
     size: options?.size || "1080x1920",
     duration: options?.seconds || 8,
