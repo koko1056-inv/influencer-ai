@@ -23,6 +23,8 @@ interface Account {
   expertise_areas: string;
   affiliate_info: string;
   cta_goal: string;
+  reference_accounts: string;
+  reference_posts: string;
 }
 
 interface Post {
@@ -870,6 +872,7 @@ export default function Dashboard() {
           model: videoModel,
           size: videoSize,
           seconds: videoDuration,
+          reference_image: referenceImage,
         }),
       });
       setGeneratedVideoUrl(data.video_url);
@@ -1777,6 +1780,68 @@ export default function Dashboard() {
                         </select>
                       </div>
                     </div>
+                    <div style={s.formGroup}>
+                      <label style={s.label}>参照画像（オプション）</label>
+                      <div
+                        style={{
+                          border: "2px dashed #2a2a3a",
+                          borderRadius: 10,
+                          padding: referenceImage ? 8 : 24,
+                          textAlign: "center",
+                          cursor: "pointer",
+                          background: "#0c0c12",
+                          position: "relative",
+                        }}
+                        onClick={() => document.getElementById("ref-image-input")?.click()}
+                      >
+                        <input
+                          id="ref-image-input-video"
+                          type="file"
+                          accept="image/*"
+                          style={{ display: "none" }}
+                          onChange={handleReferenceImageUpload}
+                        />
+                        {referenceImage ? (
+                          <div style={{ position: "relative" }}>
+                            <img
+                              src={referenceImage}
+                              alt="参照画像"
+                              style={{ maxWidth: "100%", maxHeight: 120, borderRadius: 8, objectFit: "cover" }}
+                            />
+                            <button
+                              style={{
+                                position: "absolute",
+                                top: 4,
+                                right: 4,
+                                background: "#ef4444",
+                                border: "none",
+                                borderRadius: 6,
+                                color: "#fff",
+                                padding: "2px 8px",
+                                fontSize: 12,
+                                cursor: "pointer",
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReferenceImage(null);
+                              }}
+                            >
+                              削除
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div style={{ color: "#52525b", marginBottom: 4 }}>{Icon.upload}</div>
+                            <p style={{ fontSize: 13, color: "#52525b" }}>
+                              クリックして画像をアップロード
+                            </p>
+                          </>
+                        )}
+                      </div>
+                      <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
+                        参照画像をアップロードすると、その画像をベースにした動画を生成します
+                      </p>
+                    </div>
                   </>
                 ) : (
                   <>
@@ -2602,6 +2667,8 @@ export default function Dashboard() {
                     expertise_areas: "",
                     affiliate_info: "",
                     cta_goal: "",
+                    reference_accounts: "",
+                    reference_posts: "",
                   });
                   setShowAccountForm(true);
                 }}
@@ -2696,6 +2763,36 @@ export default function Dashboard() {
                         value={editingAccount.target_audience || ""}
                         onChange={(e) => setEditingAccount({ ...editingAccount, target_audience: e.target.value })}
                       />
+                    </div>
+                  </div>
+                  {/* 参考アカウント設定 */}
+                  <div style={{ borderTop: "1px solid #1e1e2e", paddingTop: 20, marginTop: 20 }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 700, color: "#3b82f6", marginBottom: 16 }}>
+                      参考アカウント設定
+                    </h3>
+                    <div style={s.formGroup}>
+                      <label style={s.label}>参考アカウント</label>
+                      <input
+                        style={s.input}
+                        placeholder="例: @account1, @account2（カンマ区切り）"
+                        value={editingAccount.reference_accounts || ""}
+                        onChange={(e) => setEditingAccount({ ...editingAccount, reference_accounts: e.target.value })}
+                      />
+                      <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
+                        このアカウントの投稿スタイルを参考にします
+                      </p>
+                    </div>
+                    <div style={s.formGroup}>
+                      <label style={s.label}>参考にする投稿例</label>
+                      <textarea
+                        style={{ ...s.textarea, minHeight: 150 }}
+                        placeholder={"参考にしたいアカウントの投稿をコピペしてください。\n複数の投稿を貼り付けると、よりスタイルを正確に再現できます。\n\n例:\n---投稿1---\n今日はカフェで新作ラテ☕️\nやっぱりここのラテが一番好き！\n#カフェ巡り #ラテアート\n\n---投稿2---\n春の新作コスメ届いた！🌸\n発色が神すぎる…\n#コスメレビュー #春メイク"}
+                        value={editingAccount.reference_posts || ""}
+                        onChange={(e) => setEditingAccount({ ...editingAccount, reference_posts: e.target.value })}
+                      />
+                      <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
+                        参考アカウントの投稿をコピーペーストすると、その文体やスタイルを学習して投稿を生成します
+                      </p>
                     </div>
                   </div>
                   {/* 人格・キャラクター設定 */}

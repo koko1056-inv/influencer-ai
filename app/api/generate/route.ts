@@ -51,6 +51,8 @@ export async function POST(req: NextRequest) {
       expertise_areas: account.expertise_areas || "",
       affiliate_info: account.affiliate_info || "",
       cta_goal: account.cta_goal || "",
+      reference_accounts: account.reference_accounts || "",
+      reference_posts: account.reference_posts || "",
     };
 
     // テキスト生成（参照画像も渡してキャプションにも商品情報を反映）

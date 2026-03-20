@@ -12,6 +12,8 @@ export interface AccountForGeneration {
   expertise_areas?: string;
   affiliate_info?: string;
   cta_goal?: string;
+  reference_accounts?: string;
+  reference_posts?: string;
 }
 
 export interface GeneratedContent {
@@ -75,6 +77,19 @@ export async function generatePostText(
   }
   if (account.cta_goal?.trim()) {
     personaSections.push(`【投稿のゴール】\n${account.cta_goal}\n- このゴールに向かってフォロワーが自然にアクションしたくなるような投稿にしてください。CTAは押し付けがましくなく、自然な流れで`);
+  }
+  if (account.reference_posts?.trim()) {
+    personaSections.push(`【参考投稿スタイル】
+以下は参考にすべき実在のアカウントの投稿例です。この投稿のスタイル、文体、構成、絵文字の使い方、ハッシュタグの付け方を分析し、同じようなスタイルで新しい投稿を生成してください：
+
+${account.reference_posts}
+
+重要：上記の投稿の「スタイルと文体」を真似してください。内容をコピーするのではなく、同じ雰囲気・トーン・構成で今回のテーマに沿った新しい投稿を作成してください。`);
+  }
+  if (account.reference_accounts?.trim()) {
+    personaSections.push(`【参考アカウント】
+${account.reference_accounts}
+このアカウントのような投稿スタイルを目指してください。`);
   }
   const extraPersona = personaSections.length > 0 ? "\n\n" + personaSections.join("\n\n") : "";
 

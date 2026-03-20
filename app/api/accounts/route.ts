@@ -103,6 +103,8 @@ export async function POST(req: NextRequest) {
           expertise_areas: body.expertise_areas || "",
           affiliate_info: body.affiliate_info || "",
           cta_goal: body.cta_goal || "",
+          reference_accounts: body.reference_accounts || "",
+          reference_posts: body.reference_posts || "",
           updated_at: new Date().toISOString(),
         })
         .eq("id", body.id)
@@ -131,6 +133,8 @@ export async function POST(req: NextRequest) {
           expertise_areas: body.expertise_areas || "",
           affiliate_info: body.affiliate_info || "",
           cta_goal: body.cta_goal || "",
+          reference_accounts: body.reference_accounts || "",
+          reference_posts: body.reference_posts || "",
         })
         .select()
         .single();

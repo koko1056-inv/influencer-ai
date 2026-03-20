@@ -7,7 +7,7 @@ export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   try {
-    const { account_id, prompt, theme, model, size, seconds } = await req.json();
+    const { account_id, prompt, theme, model, size, seconds, reference_image } = await req.json();
 
     if (!account_id) {
       return NextResponse.json(
@@ -62,6 +62,8 @@ export async function POST(req: NextRequest) {
       expertise_areas: account.expertise_areas || "",
       affiliate_info: account.affiliate_info || "",
       cta_goal: account.cta_goal || "",
+      reference_accounts: account.reference_accounts || "",
+      reference_posts: account.reference_posts || "",
     };
 
     // 動画プロンプトとキャプションを決定
@@ -72,11 +74,11 @@ export async function POST(req: NextRequest) {
       // promptが直接指定された場合はそのまま使う
       videoPrompt = prompt;
       // キャプションはGeminiで生成
-      const content = await generatePostText(accountInfo, prompt, geminiApiKey);
+      const content = await generatePostText(accountInfo, prompt, geminiApiKey, reference_image || null);
       postText = content.post_text;
     } else {
       // themeからGeminiでキャプション＋画像プロンプトを生成し、画像プロンプトを動画プロンプトとして使う
-      const content = await generatePostText(accountInfo, theme || "", geminiApiKey);
+      const content = await generatePostText(accountInfo, theme || "", geminiApiKey, reference_image || null);
       postText = content.post_text;
       videoPrompt = content.image_prompt;
     }
@@ -87,6 +89,7 @@ export async function POST(req: NextRequest) {
       size: size || "1080x1920",
       seconds: seconds || 8,
       apiKey: openaiApiKey,
+      referenceImageUrl: reference_image || undefined,
     });
 
     // ハッシュタグを抽出
