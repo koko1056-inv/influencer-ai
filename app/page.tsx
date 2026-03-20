@@ -1751,26 +1751,122 @@ export default function Dashboard() {
         {/* ─── Create Post View ─── */}
         {(view === "create" || view === "instagram" || view === "tiktok" || view === "x") && (() => {
           const platformFilter = view === "instagram" ? "instagram" : view === "tiktok" ? "tiktok" : view === "x" ? "twitter" : null;
-          const platformTitle = view === "instagram" ? "Instagram投稿" : view === "tiktok" ? "TikTok投稿" : view === "x" ? "X投稿" : "投稿を作成";
+          const platformTitle = view === "instagram" ? "Instagram投稿" : view === "tiktok" ? "TikTok投稿" : view === "x" ? "X (Twitter) 投稿" : "投稿を作成";
           const platformColor = view === "instagram" ? "#E1306C" : view === "tiktok" ? "#00f2ea" : view === "x" ? "#1DA1F2" : "#6366f1";
           const filteredAccounts = platformFilter ? accounts.filter((a) => a.platform === platformFilter) : accounts;
+          const isIG = view === "instagram";
+          const isTT = view === "tiktok";
+          const isX = view === "x";
+          const platformSubtitle = isIG
+            ? "フィード投稿・カルーセル・リールをAIで作成"
+            : isTT
+            ? "ショート動画をAIで自動生成"
+            : isX
+            ? "ツイート・スレッドをAIで作成"
+            : "AIでキャプションと画像を生成";
+
+          // Platform-specific tips
+          const platformTips = isIG ? [
+            { icon: "📸", text: "カルーセル投稿はエンゲージメント率が1.4倍高い" },
+            { icon: "🎬", text: "リール動画はリーチが最大3倍" },
+            { icon: "#", text: "ハッシュタグは20〜30個が最適" },
+          ] : isTT ? [
+            { icon: "⚡", text: "最初の3秒で視聴者を引きつける" },
+            { icon: "🎵", text: "トレンドBGMでリーチ拡大" },
+            { icon: "📱", text: "縦型9:16が必須フォーマット" },
+          ] : isX ? [
+            { icon: "💬", text: "280文字以内で簡潔に" },
+            { icon: "🧵", text: "スレッド形式で深い話題を展開" },
+            { icon: "📊", text: "画像付きツイートはRT率が150%UP" },
+          ] : null;
+
           return (
           <>
-            <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 4, color: "#f4f4f5" }}>
-              {platformFilter && <span style={{ color: platformColor, marginRight: 8 }}>{view === "instagram" ? Icon.instagram : view === "tiktok" ? Icon.tiktok : Icon.x}</span>}
-              {platformTitle}
-            </h1>
-            <p style={{ color: "#71717a", marginBottom: 28 }}>
-              {platformFilter
-                ? `${PLATFORM_LABELS[platformFilter]}アカウントの投稿を作成`
-                : "AIでキャプションと画像を生成"}
-            </p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+              <div>
+                <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 4, color: "#f4f4f5", display: "flex", alignItems: "center", gap: 10 }}>
+                  {platformFilter && <span style={{ color: platformColor }}>{view === "instagram" ? Icon.instagram : view === "tiktok" ? Icon.tiktok : view === "x" ? Icon.x : null}</span>}
+                  {platformTitle}
+                </h1>
+                <p style={{ color: "#71717a" }}>{platformSubtitle}</p>
+              </div>
+              {platformFilter && (
+                <div style={{ display: "flex", gap: 4, background: "#0f0f18", borderRadius: 10, padding: 4, border: "1px solid #1a1a24" }}>
+                  {(isIG ? [
+                    { id: "feed", label: "フィード", active: !videoMode },
+                    { id: "reels", label: "リール", active: videoMode },
+                  ] : isTT ? [
+                    { id: "video", label: "動画", active: videoMode },
+                  ] : isX ? [
+                    { id: "tweet", label: "ツイート", active: textOnly },
+                    { id: "media", label: "画像付き", active: !textOnly && !videoMode },
+                  ] : []).map((tab) => (
+                    <button
+                      key={tab.id}
+                      style={{
+                        padding: "8px 18px",
+                        borderRadius: 8,
+                        border: "none",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        background: tab.active ? platformColor : "transparent",
+                        color: tab.active ? "#fff" : "#71717a",
+                        transition: "all 0.15s",
+                      }}
+                      onClick={() => {
+                        if (isIG) {
+                          setVideoMode(tab.id === "reels");
+                          setTextOnly(false);
+                        } else if (isTT) {
+                          setVideoMode(true);
+                          setTextOnly(false);
+                        } else if (isX) {
+                          if (tab.id === "tweet") { setTextOnly(true); setVideoMode(false); }
+                          else { setTextOnly(false); setVideoMode(false); }
+                        }
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Platform Tips */}
+            {platformTips && (
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: 12,
+                marginBottom: 24,
+              }}>
+                {platformTips.map((tip, i) => (
+                  <div key={i} style={{
+                    padding: "12px 14px",
+                    background: `${platformColor}08`,
+                    border: `1px solid ${platformColor}20`,
+                    borderRadius: 10,
+                    fontSize: 12,
+                    color: "#a1a1aa",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 8,
+                  }}>
+                    <span style={{ fontSize: 16, flexShrink: 0 }}>{tip.icon}</span>
+                    <span>{tip.text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {platformFilter && filteredAccounts.length === 0 && (
               <div style={{ ...s.card, textAlign: "center", padding: 40, marginBottom: 24 }}>
                 <p style={{ fontSize: 16, color: "#71717a", marginBottom: 16 }}>
                   {PLATFORM_LABELS[platformFilter]}のアカウントがまだ登録されていません
                 </p>
-                <button style={s.btnPrimary} onClick={() => setView("accounts")}>
+                <button style={{ ...s.btnPrimary, background: `linear-gradient(135deg, ${platformColor}, ${platformColor}cc)` }} onClick={() => setView("accounts")}>
                   {Icon.plus} アカウントを追加
                 </button>
               </div>
@@ -1778,9 +1874,12 @@ export default function Dashboard() {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
               {/* Left: Generation form */}
-              <div style={s.card}>
-                <h3 style={s.cardHeader}>生成設定</h3>
-                {/* メディアタイプ切り替え */}
+              <div style={{ ...s.card, borderTop: platformFilter ? `2px solid ${platformColor}40` : undefined }}>
+                <h3 style={s.cardHeader}>
+                  {isIG ? "フィード / リール設定" : isTT ? "ショート動画設定" : isX ? "ツイート設定" : "生成設定"}
+                </h3>
+                {/* メディアタイプ切り替え（汎用ページのみ表示） */}
+                {!platformFilter && (
                 <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
                   <button
                     style={{
@@ -1809,6 +1908,7 @@ export default function Dashboard() {
                     動画投稿
                   </button>
                 </div>
+                )}
                 <div style={s.formGroup}>
                   <label style={s.label}>アカウント</label>
                   <select
@@ -1825,27 +1925,52 @@ export default function Dashboard() {
                   </select>
                 </div>
                 <div style={s.formGroup}>
-                  <label style={s.label}>テーマ（オプション）</label>
-                  <input
-                    style={s.input}
-                    placeholder="例: 春のカフェ巡り、新作コスメレビュー..."
-                    value={theme}
-                    onChange={(e) => setTheme(e.target.value)}
-                  />
-                  <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
-                    空欄の場合、AIが自動でテーマを選びます
-                  </p>
+                  <label style={s.label}>
+                    {isX ? "ツイート内容・テーマ" : isTT ? "動画テーマ" : isIG ? "投稿テーマ" : "テーマ"}（オプション）
+                  </label>
+                  {isX ? (
+                    <textarea
+                      style={{ ...s.input, minHeight: 80, resize: "vertical" } as React.CSSProperties}
+                      placeholder="例: 最新のAIトレンドについて意見を述べたい..."
+                      value={theme}
+                      onChange={(e) => setTheme(e.target.value)}
+                      maxLength={500}
+                    />
+                  ) : (
+                    <input
+                      style={s.input}
+                      placeholder={isTT ? "例: ダンスチャレンジ、料理レシピ..." : isIG ? "例: 春のカフェ巡り、新作コスメレビュー..." : "例: 春のカフェ巡り、新作コスメレビュー..."}
+                      value={theme}
+                      onChange={(e) => setTheme(e.target.value)}
+                    />
+                  )}
+                  {isX && (
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                      <p style={{ fontSize: 12, color: "#52525b" }}>AIが280文字以内に最適化します</p>
+                      <p style={{ fontSize: 12, color: theme.length > 400 ? "#ef4444" : "#52525b" }}>{theme.length}/500</p>
+                    </div>
+                  )}
+                  {!isX && (
+                    <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
+                      空欄の場合、AIが自動でテーマを選びます
+                    </p>
+                  )}
                 </div>
+                {/* Instagram: ハッシュタグ重要 */}
                 <div style={s.formGroup}>
-                  <label style={s.label}>ハッシュタグ（オプション）</label>
+                  <label style={s.label}>
+                    {isIG ? "ハッシュタグ（重要）" : isX ? "ハッシュタグ" : "ハッシュタグ（オプション）"}
+                  </label>
                   <input
                     style={s.input}
-                    placeholder="例: #カフェ巡り #東京グルメ #おしゃれ"
+                    placeholder={isIG ? "例: #カフェ巡り #東京グルメ #おしゃれ #instagood" : isX ? "例: #AI #テック" : "例: #カフェ巡り #東京グルメ #おしゃれ"}
                     value={hashtags}
                     onChange={(e) => setHashtags(e.target.value)}
                   />
-                  <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
-                    指定すると生成テキストに追加されます。空欄ならAIが自動生成
+                  <p style={{ fontSize: 12, color: isIG ? platformColor : "#52525b", marginTop: 4 }}>
+                    {isIG
+                      ? "20〜30個のハッシュタグでリーチを最大化。空欄ならAIが自動生成"
+                      : "指定すると生成テキストに追加されます。空欄ならAIが自動生成"}
                   </p>
                 </div>
                 {videoMode ? (
@@ -2213,14 +2338,16 @@ export default function Dashboard() {
                       ...s.btnPrimary,
                       width: "100%",
                       justifyContent: "center",
-                      background: "linear-gradient(135deg, #f43f5e, #e11d48)",
+                      background: platformFilter ? `linear-gradient(135deg, ${platformColor}, ${platformColor}cc)` : "linear-gradient(135deg, #f43f5e, #e11d48)",
                       opacity: videoGenerating || !selectedAccountId ? 0.6 : 1,
                       pointerEvents: videoGenerating || !selectedAccountId ? "none" : "auto",
                     }}
                     onClick={handleGenerateVideo}
                     disabled={videoGenerating || !selectedAccountId}
                   >
-                    {videoGenerating ? <><div style={s.spinner} /> {videoProgress || "動画生成中..."}</> : <>{Icon.sparkle} 動画を生成</>}
+                    {videoGenerating
+                      ? <><div style={s.spinner} /> {videoProgress || "動画生成中..."}</>
+                      : <>{Icon.sparkle} {isTT ? "TikTok動画を生成" : isIG ? "リール動画を生成" : "動画を生成"}</>}
                   </button>
                 ) : (
                 <button
@@ -2228,6 +2355,7 @@ export default function Dashboard() {
                     ...s.btnPrimary,
                     width: "100%",
                     justifyContent: "center",
+                    background: platformFilter ? `linear-gradient(135deg, ${platformColor}, ${platformColor}cc)` : undefined,
                     opacity: generating || !selectedAccountId ? 0.5 : 1,
                     pointerEvents: generating || !selectedAccountId ? "none" : "auto",
                   }}
@@ -2236,19 +2364,29 @@ export default function Dashboard() {
                 >
                   {generating ? <div style={s.spinner} /> : Icon.sparkle}
                   {generating
-                    ? (textOnly ? "生成中...（テキストのみ）" : `生成中...（${imageCount}枚）`)
+                    ? (textOnly ? "生成中..." : `生成中...（${imageCount}枚）`)
+                    : isX
+                    ? (textOnly ? "ツイートを生成" : `画像付きツイートを生成（${imageCount}枚）`)
+                    : isIG
+                    ? `Instagram投稿を生成（${imageCount}枚）`
                     : (textOnly ? "AIで生成（テキストのみ）" : `AIで生成（${imageCount}枚）`)}
                 </button>
                 )}
               </div>
 
               {/* Right: Preview */}
-              <div style={s.card}>
-                <h3 style={s.cardHeader}>プレビュー</h3>
+              <div style={{ ...s.card, borderTop: platformFilter ? `2px solid ${platformColor}40` : undefined }}>
+                <h3 style={s.cardHeader}>
+                  {isIG ? "Instagramプレビュー" : isTT ? "TikTokプレビュー" : isX ? "ツイートプレビュー" : "プレビュー"}
+                </h3>
                 {!generatedCaption && !generating && !videoGenerating ? (
                   <div style={s.empty}>
-                    <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}>{Icon.image}</div>
-                    <p style={{ fontSize: 14 }}>生成結果がここに表示されます</p>
+                    <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}>
+                      {isIG ? Icon.instagram : isTT ? Icon.tiktok : isX ? Icon.x : Icon.image}
+                    </div>
+                    <p style={{ fontSize: 14 }}>
+                      {isIG ? "Instagram投稿のプレビュー" : isTT ? "TikTok動画のプレビュー" : isX ? "ツイートのプレビュー" : "生成結果がここに表示されます"}
+                    </p>
                   </div>
                 ) : (generating || videoGenerating) ? (
                   <div style={{ ...s.empty, display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
@@ -2357,13 +2495,15 @@ export default function Dashboard() {
                           flex: 1,
                           justifyContent: "center",
                           opacity: posting ? 0.5 : 1,
-                          ...(generatedVideoUrl ? { background: "linear-gradient(135deg, #f43f5e, #e11d48)" } : {}),
+                          ...(platformFilter
+                            ? { background: `linear-gradient(135deg, ${platformColor}, ${platformColor}cc)` }
+                            : generatedVideoUrl ? { background: "linear-gradient(135deg, #f43f5e, #e11d48)" } : {}),
                         }}
                         onClick={generatedVideoUrl ? handlePostVideo : handlePost}
                         disabled={posting}
                       >
                         {posting ? <div style={s.spinner} /> : Icon.send}
-                        {posting ? "投稿中..." : "Bufferで投稿"}
+                        {posting ? "投稿中..." : isIG ? "Instagramに投稿" : isTT ? "TikTokに投稿" : isX ? "Xに投稿" : "Bufferで投稿"}
                       </button>
                       <button style={s.btnSecondary} onClick={generatedVideoUrl ? handleGenerateVideo : handleGenerate}>
                         {Icon.refresh} 再生成
@@ -2380,9 +2520,38 @@ export default function Dashboard() {
         {/* ─── LinkedIn Post View ─── */}
         {view === "linkedin" && (
           <>
+            {/* LinkedIn Tips */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: 12,
+              marginBottom: 24,
+            }}>
+              {[
+                { icon: "📝", text: "1,300文字以内の長文投稿が最もエンゲージメントが高い" },
+                { icon: "🤝", text: "ストーリー形式の投稿はシェア率が3倍" },
+                { icon: "📊", text: "データや実績を含む投稿はインプレッション2倍" },
+              ].map((tip, i) => (
+                <div key={i} style={{
+                  padding: "12px 14px",
+                  background: "#0A66C208",
+                  border: "1px solid #0A66C220",
+                  borderRadius: 10,
+                  fontSize: 12,
+                  color: "#a1a1aa",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 8,
+                }}>
+                  <span style={{ fontSize: 16, flexShrink: 0 }}>{tip.icon}</span>
+                  <span>{tip.text}</span>
+                </div>
+              ))}
+            </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
               <div>
-                <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 4, color: "#f4f4f5" }}>
+                <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 4, color: "#f4f4f5", display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ color: "#0A66C2" }}>{Icon.linkedin}</span>
                   LinkedIn投稿
                 </h1>
                 <p style={{ color: "#71717a" }}>
@@ -2614,7 +2783,7 @@ export default function Dashboard() {
             {liTab === "create" && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
               {/* Left: Generation form */}
-              <div style={s.card}>
+              <div style={{ ...s.card, borderTop: "2px solid #0A66C240" }}>
                 <h3 style={s.cardHeader}>
                   <span style={{ color: "#0A66C2" }}>LinkedIn</span> 投稿設定
                 </h3>
@@ -2735,8 +2904,8 @@ export default function Dashboard() {
               </div>
 
               {/* Right: Preview */}
-              <div style={s.card}>
-                <h3 style={s.cardHeader}>プレビュー</h3>
+              <div style={{ ...s.card, borderTop: "2px solid #0A66C240" }}>
+                <h3 style={s.cardHeader}>LinkedInプレビュー</h3>
                 {!liCaption && !liGenerating ? (
                   <div style={s.empty}>
                     <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}>{Icon.linkedin}</div>
