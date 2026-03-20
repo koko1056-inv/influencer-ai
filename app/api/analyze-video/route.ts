@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     const mimeType = mime_type || "video/mp4";
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-3.1-flash-lite-preview",
+      model: "gemini-3.1-flash-preview",
     });
 
     const result = await model.generateContent({

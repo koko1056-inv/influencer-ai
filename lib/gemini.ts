@@ -156,8 +156,10 @@ ${account.target_audience}${extraPersona}
 以下のJSON形式で出力してください（他の文字は不要）:
 {"post_text": "投稿テキスト", "image_prompt": "英語の画像生成プロンプト"}`;
 
+  // 画像入力がある場合はマルチモーダル対応モデルを使用
+  const hasMultimodal = hasAvatar || hasReference;
   const model = genAI.getGenerativeModel({
-    model: "gemini-3.1-flash-lite-preview",
+    model: hasMultimodal ? "gemini-3.1-flash-preview" : "gemini-3.1-flash-lite-preview",
     systemInstruction: systemPrompt,
   });
 
@@ -424,7 +426,7 @@ LinkedInの投稿画像として適切な、プロフェッショナルでクリ
 {"post_text": "LinkedIn投稿テキスト（改行あり）", "image_prompt": "英語の画像生成プロンプト", "headline": "投稿の見出し（20文字以内）"}`;
 
   const model = genAI.getGenerativeModel({
-    model: "gemini-3.1-flash-lite-preview",
+    model: hasReference ? "gemini-3.1-flash-preview" : "gemini-3.1-flash-lite-preview",
     systemInstruction: systemPrompt,
   });
 
