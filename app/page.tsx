@@ -215,6 +215,8 @@ const PLATFORM_COLORS: Record<string, string> = {
   startpage: "#6366f1",
 };
 
+const VIDEO_PLATFORMS = ["instagram", "tiktok", "youtube", "facebook", "threads", "linkedin"];
+
 const PLATFORM_LABELS: Record<string, string> = {
   instagram: "Instagram",
   twitter: "X (Twitter)",
@@ -586,6 +588,15 @@ export default function Dashboard() {
   const [generating, setGenerating] = useState(false);
   const [posting, setPosting] = useState(false);
 
+  // Video generation state
+  const [videoMode, setVideoMode] = useState(false);
+  const [videoModel, setVideoModel] = useState<"sora-2" | "sora-2-pro">("sora-2");
+  const [videoSize, setVideoSize] = useState("1080x1920");
+  const [videoDuration, setVideoDuration] = useState<8 | 20>(8);
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  const [videoGenerating, setVideoGenerating] = useState(false);
+  const [videoProgress, setVideoProgress] = useState("");
+
   // Auto-post settings
   const [autoPostEnabled, setAutoPostEnabled] = useState(false);
   const [autoPostUseTrends, setAutoPostUseTrends] = useState(false);
@@ -624,6 +635,7 @@ export default function Dashboard() {
   // Settings
   const [settingsGemini, setSettingsGemini] = useState("");
   const [settingsBuffer, setSettingsBuffer] = useState("");
+  const [settingsOpenAI, setSettingsOpenAI] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
 
   // Toast notification
@@ -835,6 +847,72 @@ export default function Dashboard() {
     setPosting(false);
   };
 
+  /* ─── Generate Video ─── */
+  const handleGenerateVideo = async () => {
+    if (!selectedAccountId) return;
+    setVideoGenerating(true);
+    setVideoProgress("動画プロンプト生成中...");
+    setGeneratedVideoUrl(null);
+    setGeneratedCaption("");
+    setGeneratedPostId(null);
+    try {
+      const data = await api<{
+        video_url: string;
+        video_id: string;
+        post_id: string;
+        post_text: string;
+      }>("/api/generate-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          account_id: selectedAccountId,
+          theme,
+          model: videoModel,
+          size: videoSize,
+          seconds: videoDuration,
+        }),
+      });
+      setGeneratedVideoUrl(data.video_url);
+      let caption = data.post_text;
+      if (hashtags.trim() && !caption.includes(hashtags.trim())) {
+        caption = caption.trimEnd() + "\n\n" + hashtags.trim();
+      }
+      setGeneratedCaption(caption);
+      setGeneratedPostId(data.post_id);
+      showToast("動画を生成しました！", "success");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "動画生成に失敗しました";
+      showToast(msg, "error");
+    }
+    setVideoGenerating(false);
+    setVideoProgress("");
+  };
+
+  /* ─── Post Video ─── */
+  const handlePostVideo = async () => {
+    if (!generatedPostId || !generatedVideoUrl) return;
+    setPosting(true);
+    try {
+      await api("/api/post-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          post_id: generatedPostId,
+          video_url: generatedVideoUrl,
+        }),
+      });
+      showToast("動画を投稿しました！", "success");
+      setGeneratedCaption("");
+      setGeneratedVideoUrl(null);
+      setGeneratedPostId(null);
+      fetchPosts();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "投稿に失敗しました";
+      showToast(msg, "error");
+    }
+    setPosting(false);
+  };
+
   /* ─── Account CRUD ─── */
   const handleSaveAccount = async () => {
     if (!editingAccount?.name) {
@@ -876,6 +954,7 @@ export default function Dashboard() {
       const s = data.settings;
       if (s.gemini_api_key && typeof s.gemini_api_key === "string") setSettingsGemini(s.gemini_api_key);
       if (s.buffer_api_key && typeof s.buffer_api_key === "string") setSettingsBuffer(s.buffer_api_key);
+      if (s.openai_api_key && typeof s.openai_api_key === "string") setSettingsOpenAI(s.openai_api_key);
       // Auto-post settings
       if (s.auto_post_enabled !== undefined) {
         setAutoPostEnabled(s.auto_post_enabled === true || s.auto_post_enabled === "true");
@@ -915,6 +994,13 @@ export default function Dashboard() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ key: "buffer_api_key", value: settingsBuffer }),
+        });
+      }
+      if (settingsOpenAI) {
+        await api("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: "openai_api_key", value: settingsOpenAI }),
         });
       }
       showToast("設定を保存しました", "success");
@@ -1595,6 +1681,35 @@ export default function Dashboard() {
               {/* Left: Generation form */}
               <div style={s.card}>
                 <h3 style={s.cardHeader}>生成設定</h3>
+                {/* メディアタイプ切り替え */}
+                <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+                  <button
+                    style={{
+                      ...s.btnSmall,
+                      background: !videoMode ? "#6366f120" : "#1a1a2e",
+                      color: !videoMode ? "#818cf8" : "#71717a",
+                      border: `1px solid ${!videoMode ? "#6366f140" : "#27273a"}`,
+                    }}
+                    onClick={() => setVideoMode(false)}
+                  >
+                    {Icon.image} 画像投稿
+                  </button>
+                  <button
+                    style={{
+                      ...s.btnSmall,
+                      background: videoMode ? "#f43f5e20" : "#1a1a2e",
+                      color: videoMode ? "#fb7185" : "#71717a",
+                      border: `1px solid ${videoMode ? "#f43f5e40" : "#27273a"}`,
+                    }}
+                    onClick={() => setVideoMode(true)}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="23 7 16 12 23 17 23 7" />
+                      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                    </svg>
+                    動画投稿
+                  </button>
+                </div>
                 <div style={s.formGroup}>
                   <label style={s.label}>アカウント</label>
                   <select
@@ -1634,6 +1749,37 @@ export default function Dashboard() {
                     指定すると生成テキストに追加されます。空欄ならAIが自動生成
                   </p>
                 </div>
+                {videoMode ? (
+                  <>
+                    <div style={s.formGroup}>
+                      <label style={s.label}>動画モデル</label>
+                      <select style={s.select as React.CSSProperties} value={videoModel} onChange={(e) => setVideoModel(e.target.value as "sora-2" | "sora-2-pro")}>
+                        <option value="sora-2">Sora 2（高速）</option>
+                        <option value="sora-2-pro">Sora 2 Pro（高品質）</option>
+                      </select>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div style={s.formGroup}>
+                        <label style={s.label}>サイズ</label>
+                        <select style={s.select as React.CSSProperties} value={videoSize} onChange={(e) => setVideoSize(e.target.value)}>
+                          <option value="1080x1920">縦型 1080x1920（Reels/TikTok）</option>
+                          <option value="1920x1080">横型 1920x1080（YouTube）</option>
+                          <option value="1280x720">横型 1280x720</option>
+                          <option value="480x848">縦型 480x848（軽量）</option>
+                          <option value="848x480">横型 848x480（軽量）</option>
+                        </select>
+                      </div>
+                      <div style={s.formGroup}>
+                        <label style={s.label}>長さ</label>
+                        <select style={s.select as React.CSSProperties} value={videoDuration} onChange={(e) => setVideoDuration(Number(e.target.value) as 8 | 20)}>
+                          <option value={8}>8秒</option>
+                          <option value={20}>20秒</option>
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
                 {/* テキストのみ投稿トグル（Instagram以外で表示） */}
                 {(() => {
                   const selectedAcc = accounts.find((a) => a.id === selectedAccountId);
@@ -1774,6 +1920,24 @@ export default function Dashboard() {
                   </div>
                 </div>
                 </>)}
+                  </>
+                )}
+                {videoMode ? (
+                  <button
+                    style={{
+                      ...s.btnPrimary,
+                      width: "100%",
+                      justifyContent: "center",
+                      background: "linear-gradient(135deg, #f43f5e, #e11d48)",
+                      opacity: videoGenerating || !selectedAccountId ? 0.6 : 1,
+                      pointerEvents: videoGenerating || !selectedAccountId ? "none" : "auto",
+                    }}
+                    onClick={handleGenerateVideo}
+                    disabled={videoGenerating || !selectedAccountId}
+                  >
+                    {videoGenerating ? <><div style={s.spinner} /> {videoProgress || "動画生成中..."}</> : <>{Icon.sparkle} 動画を生成</>}
+                  </button>
+                ) : (
                 <button
                   style={{
                     ...s.btnPrimary,
@@ -1790,25 +1954,47 @@ export default function Dashboard() {
                     ? (textOnly ? "生成中...（テキストのみ）" : `生成中...（${imageCount}枚）`)
                     : (textOnly ? "AIで生成（テキストのみ）" : `AIで生成（${imageCount}枚）`)}
                 </button>
+                )}
               </div>
 
               {/* Right: Preview */}
               <div style={s.card}>
                 <h3 style={s.cardHeader}>プレビュー</h3>
-                {!generatedCaption && !generating ? (
+                {!generatedCaption && !generating && !videoGenerating ? (
                   <div style={s.empty}>
                     <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.3 }}>{Icon.image}</div>
                     <p style={{ fontSize: 14 }}>生成結果がここに表示されます</p>
                   </div>
-                ) : generating ? (
+                ) : (generating || videoGenerating) ? (
                   <div style={{ ...s.empty, display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
                     <div style={s.spinner} />
-                    <p style={{ fontSize: 14, color: "#71717a" }}>AIが投稿を生成しています...</p>
+                    <p style={{ fontSize: 14, color: "#71717a" }}>
+                      {videoGenerating ? (videoProgress || "動画を生成しています...") : "AIが投稿を生成しています..."}
+                    </p>
                   </div>
                 ) : (
                   <>
+                    {/* 動画プレビュー */}
+                    {generatedVideoUrl && (
+                      <div style={{ marginTop: 12 }}>
+                        <video
+                          src={generatedVideoUrl}
+                          controls
+                          autoPlay
+                          muted
+                          loop
+                          style={{
+                            width: "100%",
+                            maxHeight: 400,
+                            borderRadius: 12,
+                            border: "1px solid #27273a",
+                            background: "#000",
+                          }}
+                        />
+                      </div>
+                    )}
                     {/* 画像ギャラリー */}
-                    {generatedImages.length > 0 && (
+                    {!generatedVideoUrl && generatedImages.length > 0 && (
                       <div>
                         <img
                           src={generatedImages[selectedImageIndex] || generatedImage || ""}
@@ -1862,7 +2048,7 @@ export default function Dashboard() {
                       </div>
                     )}
                     {/* 単一画像（後方互換） */}
-                    {generatedImages.length === 0 && generatedImage && (
+                    {!generatedVideoUrl && generatedImages.length === 0 && generatedImage && (
                       <img src={generatedImage} alt="Generated" style={s.previewImage} />
                     )}
                     <div
@@ -1886,14 +2072,15 @@ export default function Dashboard() {
                           flex: 1,
                           justifyContent: "center",
                           opacity: posting ? 0.5 : 1,
+                          ...(generatedVideoUrl ? { background: "linear-gradient(135deg, #f43f5e, #e11d48)" } : {}),
                         }}
-                        onClick={handlePost}
+                        onClick={generatedVideoUrl ? handlePostVideo : handlePost}
                         disabled={posting}
                       >
                         {posting ? <div style={s.spinner} /> : Icon.send}
                         {posting ? "投稿中..." : "Bufferで投稿"}
                       </button>
-                      <button style={s.btnSecondary} onClick={handleGenerate}>
+                      <button style={s.btnSecondary} onClick={generatedVideoUrl ? handleGenerateVideo : handleGenerate}>
                         {Icon.refresh} 再生成
                       </button>
                     </div>
@@ -3190,6 +3377,19 @@ export default function Dashboard() {
                 </p>
               </div>
               <div style={s.formGroup}>
+                <label style={s.label}>OpenAI API Key (Sora動画生成)</label>
+                <input
+                  style={s.input}
+                  type="password"
+                  placeholder="sk-..."
+                  value={settingsOpenAI}
+                  onChange={(e) => setSettingsOpenAI(e.target.value)}
+                />
+                <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
+                  Sora 2による動画生成に使用
+                </p>
+              </div>
+              <div style={s.formGroup}>
                 <label style={s.label}>Buffer Access Token</label>
                 <input
                   style={s.input}
@@ -3397,6 +3597,10 @@ export default function Dashboard() {
                 <div>
                   <div style={{ fontSize: 12, color: "#71717a", marginBottom: 4 }}>投稿連携</div>
                   <div style={{ fontSize: 14, color: "#d4d4d8" }}>Buffer API</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: "#71717a", marginBottom: 4 }}>動画生成</div>
+                  <div style={{ fontSize: 14, color: "#d4d4d8" }}>Sora 2 (OpenAI)</div>
                 </div>
               </div>
             </div>

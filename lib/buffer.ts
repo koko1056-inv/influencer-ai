@@ -150,7 +150,8 @@ export async function getChannels(
 
 /** チャンネルのサービスタイプに応じたmetadataを生成 */
 async function getMetadataForChannel(
-  channelId: string
+  channelId: string,
+  options?: { isVideo?: boolean }
 ): Promise<Record<string, unknown> | undefined> {
   try {
     const channels = await getChannels();
@@ -159,14 +160,23 @@ async function getMetadataForChannel(
 
     switch (channel.service) {
       case "instagram":
+        if (options?.isVideo) {
+          return {
+            instagram: { type: "reel" },
+          };
+        }
         return {
           instagram: { type: "post", shouldShareToFeed: true },
+        };
+      case "tiktok":
+        return {
+          tiktok: { type: "video" },
         };
       case "youtube":
         return {
           youtube: { type: "short" },
         };
-      // twitter, linkedin, facebook, threads, bluesky, tiktok,
+      // twitter, linkedin, facebook, threads, bluesky,
       // mastodon, pinterest, googlebusiness, startpage は
       // metadata不要（Buffer側で自動処理）
       default:
@@ -254,6 +264,39 @@ export async function createImagePost(
     dueAt,
     assets: {
       images,
+    },
+  };
+  if (metadata) input.metadata = metadata;
+
+  const data = await graphql<{ createPost: PostResult }>(POST_MUTATION, { input });
+
+  if ("post" in data.createPost) {
+    return { success: true, postId: data.createPost.post.id };
+  }
+  return {
+    success: false,
+    message: (data.createPost as { message: string }).message,
+  };
+}
+
+/** Create a post with video */
+export async function createVideoPost(
+  channelId: string,
+  text: string,
+  videoUrl: string,
+  scheduledAt?: string
+): Promise<{ success: boolean; postId?: string; message?: string }> {
+  const dueAt = scheduledAt || new Date(Date.now() + 60000).toISOString();
+  const metadata = await getMetadataForChannel(channelId, { isVideo: true });
+
+  const input: Record<string, unknown> = {
+    text,
+    channelId,
+    schedulingType: "automatic",
+    mode: "customScheduled",
+    dueAt,
+    assets: {
+      video: { url: videoUrl },
     },
   };
   if (metadata) input.metadata = metadata;
