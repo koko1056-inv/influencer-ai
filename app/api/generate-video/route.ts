@@ -7,7 +7,7 @@ export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   try {
-    const { account_id, prompt, theme, model, size, seconds, reference_image } = await req.json();
+    const { account_id, prompt, theme, model, size, seconds, reference_image, video_analysis } = await req.json();
 
     if (!account_id) {
       return NextResponse.json(
@@ -70,17 +70,36 @@ export async function POST(req: NextRequest) {
     let videoPrompt: string;
     let postText: string;
 
-    if (prompt && !theme) {
-      // promptが直接指定された場合はそのまま使う
-      videoPrompt = prompt;
-      // キャプションはGeminiで生成
-      const content = await generatePostText(accountInfo, prompt, geminiApiKey, reference_image || null);
-      postText = content.post_text;
-    } else {
-      // themeからGeminiでキャプション＋画像プロンプトを生成し、画像プロンプトを動画プロンプトとして使う
-      const content = await generatePostText(accountInfo, theme || "", geminiApiKey, reference_image || null);
-      postText = content.post_text;
-      videoPrompt = content.image_prompt;
+    try {
+      if (prompt && !theme) {
+        videoPrompt = prompt;
+        const content = await generatePostText(accountInfo, prompt, geminiApiKey, reference_image || null);
+        postText = content.post_text;
+      } else {
+        const content = await generatePostText(accountInfo, theme || "", geminiApiKey, reference_image || null);
+        postText = content.post_text;
+        videoPrompt = content.image_prompt;
+      }
+    } catch (geminiErr: any) {
+      console.error("Geminiテキスト生成エラー:", geminiErr);
+      return NextResponse.json(
+        { error: `テキスト生成に失敗しました: ${geminiErr.message || "Gemini APIエラー"}` },
+        { status: 500 }
+      );
+    }
+
+    // 動画分析データがある場合、プロンプトを強化
+    if (video_analysis?.recommended_prompt) {
+      const analysisContext = [
+        `REFERENCE VIDEO STYLE: ${video_analysis.recommended_prompt}`,
+        video_analysis.style ? `STYLE: ${video_analysis.style}` : "",
+        video_analysis.overall_mood ? `MOOD: ${video_analysis.overall_mood}` : "",
+        video_analysis.color_palette ? `COLORS: ${video_analysis.color_palette}` : "",
+        video_analysis.transitions ? `TRANSITIONS: ${video_analysis.transitions}` : "",
+        video_analysis.scenes?.length ? `SCENE FLOW: ${video_analysis.scenes.map((s: any) => `[${s.camera_movement}] ${s.description}`).join(" → ")}` : "",
+      ].filter(Boolean).join("\n");
+
+      videoPrompt = `${analysisContext}\n\nNow create a NEW video with the same style/mood/technique but with this content:\n${videoPrompt}`;
     }
 
     // Sora 2で動画生成（完了まで待機）

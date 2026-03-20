@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { supabase } from "@/lib/supabase";
+import { uploadImageFromBase64 } from "@/lib/storage";
 
 /** Supabase app_settings → env変数 の順でAPIキーを取得 */
 export async function getOpenAIApiKey(): Promise<string> {
@@ -50,10 +51,13 @@ export async function createVideo(
     { type: "text", text: prompt },
   ];
   if (options?.referenceImageUrl) {
-    input.push({
-      type: "image_url",
-      image_url: options.referenceImageUrl,
-    });
+    const resolvedUrl = await resolveImageUrl(options.referenceImageUrl);
+    if (resolvedUrl) {
+      input.push({
+        type: "image_url",
+        image_url: resolvedUrl,
+      });
+    }
   }
 
   const video = await openai.videos.create({
@@ -123,6 +127,16 @@ export async function downloadAndUploadVideo(
   return pubUrl.publicUrl;
 }
 
+/** data URLをSupabaseにアップロードしてpublic URLに変換 */
+async function resolveImageUrl(imageUrl: string): Promise<string | null> {
+  if (imageUrl.startsWith("data:")) {
+    const publicUrl = await uploadImageFromBase64(imageUrl, `sora-ref-${Date.now()}`);
+    return publicUrl;
+  }
+  // 既にhttpのURLならそのまま返す
+  return imageUrl;
+}
+
 /**
  * 動画生成＆ポーリング＆ダウンロードをまとめて実行
  */
@@ -144,10 +158,14 @@ export async function generateVideoFull(
     { type: "text", text: prompt },
   ];
   if (options?.referenceImageUrl) {
-    input.push({
-      type: "image_url",
-      image_url: options.referenceImageUrl,
-    });
+    // data URLの場合はSupabaseにアップロードしてpublic URLに変換
+    const resolvedUrl = await resolveImageUrl(options.referenceImageUrl);
+    if (resolvedUrl) {
+      input.push({
+        type: "image_url",
+        image_url: resolvedUrl,
+      });
+    }
   }
 
   const job = await openai.videos.create({
