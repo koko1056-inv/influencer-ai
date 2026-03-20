@@ -7,6 +7,11 @@ export interface AccountForGeneration {
   tone: string;
   target_audience: string;
   avatar_url?: string | null;
+  character_voice?: string;
+  writing_style?: string;
+  expertise_areas?: string;
+  affiliate_info?: string;
+  cta_goal?: string;
 }
 
 export interface GeneratedContent {
@@ -54,6 +59,25 @@ export async function generatePostText(
 
   const hasReference = !!referenceImageUrl;
 
+  // 追加ペルソナセクションを構築
+  const personaSections: string[] = [];
+  if (account.character_voice?.trim()) {
+    personaSections.push(`【口癖・キャラクター】\n${account.character_voice}\n- この口癖や言い回しを投稿に自然に取り入れてください`);
+  }
+  if (account.writing_style?.trim()) {
+    personaSections.push(`【投稿スタイル】\n${account.writing_style}\n- このスタイルに従って投稿を構成してください`);
+  }
+  if (account.expertise_areas?.trim()) {
+    personaSections.push(`【専門分野】\n${account.expertise_areas}\n- この分野の知識を活かした投稿にしてください`);
+  }
+  if (account.affiliate_info?.trim()) {
+    personaSections.push(`【プロモーション情報】\n${account.affiliate_info}\n- この商品/サービスを自然に紹介してください。露骨な宣伝にならず、本人が本当に良いと思って紹介しているような自然な語りにしてください。商品リンクがあれば投稿の最後に自然に配置してください`);
+  }
+  if (account.cta_goal?.trim()) {
+    personaSections.push(`【投稿のゴール】\n${account.cta_goal}\n- このゴールに向かってフォロワーが自然にアクションしたくなるような投稿にしてください。CTAは押し付けがましくなく、自然な流れで`);
+  }
+  const extraPersona = personaSections.length > 0 ? "\n\n" + personaSections.join("\n\n") : "";
+
   const systemPrompt = `あなたは「${account.name}」というSNSインフルエンサーです。
 以下のペルソナ設定に従って、本人が書いたような自然で魅力的なSNS投稿を作成してください。
 
@@ -64,7 +88,7 @@ ${account.persona}
 ${account.tone}
 
 【ターゲット層】
-${account.target_audience}
+${account.target_audience}${extraPersona}
 
 【絶対ルール】
 - この1回のリクエストで指定されたテーマ「だけ」に基づいて生成してください
@@ -118,7 +142,7 @@ ${account.target_audience}
 {"post_text": "投稿テキスト", "image_prompt": "英語の画像生成プロンプト"}`;
 
   const model = genAI.getGenerativeModel({
-    model: "gemini-3.1-flash-lite-preview",
+    model: "gemini-3.1-flash-preview",
     systemInstruction: systemPrompt,
   });
 
@@ -385,7 +409,7 @@ LinkedInの投稿画像として適切な、プロフェッショナルでクリ
 {"post_text": "LinkedIn投稿テキスト（改行あり）", "image_prompt": "英語の画像生成プロンプト", "headline": "投稿の見出し（20文字以内）"}`;
 
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
+    model: "gemini-3.1-flash-preview",
     systemInstruction: systemPrompt,
   });
 

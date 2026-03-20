@@ -98,6 +98,11 @@ export async function POST(req: NextRequest) {
           avatar_url: avatarUrl,
           buffer_profile_id: body.buffer_profile_id || null,
           is_active: body.is_active !== false,
+          character_voice: body.character_voice || "",
+          writing_style: body.writing_style || "",
+          expertise_areas: body.expertise_areas || "",
+          affiliate_info: body.affiliate_info || "",
+          cta_goal: body.cta_goal || "",
           updated_at: new Date().toISOString(),
         })
         .eq("id", body.id)
@@ -121,6 +126,11 @@ export async function POST(req: NextRequest) {
           avatar_url: avatarUrl,
           buffer_profile_id: body.buffer_profile_id || null,
           is_active: body.is_active !== false,
+          character_voice: body.character_voice || "",
+          writing_style: body.writing_style || "",
+          expertise_areas: body.expertise_areas || "",
+          affiliate_info: body.affiliate_info || "",
+          cta_goal: body.cta_goal || "",
         })
         .select()
         .single();

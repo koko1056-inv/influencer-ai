@@ -46,41 +46,50 @@ export async function POST(req: NextRequest) {
       tone: account.tone,
       target_audience: account.target_audience,
       avatar_url: account.avatar_url || null,
+      character_voice: account.character_voice || "",
+      writing_style: account.writing_style || "",
+      expertise_areas: account.expertise_areas || "",
+      affiliate_info: account.affiliate_info || "",
+      cta_goal: account.cta_goal || "",
     };
 
     // テキスト生成（参照画像も渡してキャプションにも商品情報を反映）
     const content = await generatePostText(accountInfo, theme || "", apiKey, reference_image || null);
 
-    // 複数画像生成（最大5枚）
-    const requestedCount = Math.min(Math.max(image_count || 1, 1), 5);
+    // 複数画像生成（最大5枚、0の場合はスキップ）
+    const requestedCount = image_count === 0 ? 0 : Math.min(Math.max(image_count || 1, 1), 5);
     const imageResults: string[] = [];
     const imageUrls: string[] = [];
 
-    try {
-      const generatedImages = await generateMultipleImages(
-        accountInfo,
-        content.image_prompt,
-        requestedCount,
-        apiKey,
-        reference_image || null
-      );
+    if (requestedCount > 0) {
+      try {
+        const generatedImages = await generateMultipleImages(
+          accountInfo,
+          content.image_prompt,
+          requestedCount,
+          apiKey,
+          reference_image || null
+        );
 
-      // 各画像をSupabase Storageにアップロード
-      for (const imageData of generatedImages) {
-        imageResults.push(imageData);
-        try {
-          const url = await uploadImageFromBase64(imageData);
-          if (url) {
-            imageUrls.push(url);
+        // 各画像をSupabase Storageにアップロード
+        for (const imageData of generatedImages) {
+          imageResults.push(imageData);
+          try {
+            const url = await uploadImageFromBase64(imageData);
+            if (url) {
+              imageUrls.push(url);
+            }
+          } catch (e) {
+            console.error("画像アップロードエラー:", e);
           }
-        } catch (e) {
-          console.error("画像アップロードエラー:", e);
         }
-      }
 
-      console.log(`画像生成完了: ${imageResults.length}/${requestedCount}枚`);
-    } catch (e) {
-      console.error("画像生成スキップ:", e);
+        console.log(`画像生成完了: ${imageResults.length}/${requestedCount}枚`);
+      } catch (e) {
+        console.error("画像生成スキップ:", e);
+      }
+    } else {
+      console.log("テキストのみ生成（画像生成スキップ）");
     }
 
     // ハッシュタグを抽出

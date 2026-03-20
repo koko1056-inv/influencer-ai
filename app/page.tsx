@@ -18,6 +18,11 @@ interface Account {
   buffer_profile_id: string | null;
   is_active: boolean;
   created_at: string;
+  character_voice: string;
+  writing_style: string;
+  expertise_areas: string;
+  affiliate_info: string;
+  cta_goal: string;
 }
 
 interface Post {
@@ -570,6 +575,7 @@ export default function Dashboard() {
   const [theme, setTheme] = useState("");
   const [hashtags, setHashtags] = useState("");
   const [imageCount, setImageCount] = useState(1);
+  const [textOnly, setTextOnly] = useState(false);
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
   const [generatedCaption, setGeneratedCaption] = useState("");
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
@@ -754,8 +760,8 @@ export default function Dashboard() {
         body: JSON.stringify({
           account_id: selectedAccountId,
           theme,
-          image_count: imageCount,
-          reference_image: referenceImage,
+          image_count: textOnly ? 0 : imageCount,
+          reference_image: textOnly ? null : referenceImage,
         }),
       });
       // ハッシュタグが指定されていて生成テキストに含まれていなければ追加
@@ -1628,6 +1634,58 @@ export default function Dashboard() {
                     指定すると生成テキストに追加されます。空欄ならAIが自動生成
                   </p>
                 </div>
+                {/* テキストのみ投稿トグル（Instagram以外で表示） */}
+                {(() => {
+                  const selectedAcc = accounts.find((a) => a.id === selectedAccountId);
+                  return selectedAcc && selectedAcc.platform !== "instagram" ? (
+                    <div style={{ ...s.formGroup, display: "flex", alignItems: "center", gap: 12 }}>
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          cursor: "pointer",
+                          fontSize: 14,
+                          color: textOnly ? "#a5b4fc" : "#a1a1aa",
+                          userSelect: "none",
+                        }}
+                        onClick={() => {
+                          setTextOnly(!textOnly);
+                          if (!textOnly) {
+                            setImageCount(1); // reset when toggling off later
+                          }
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 40,
+                            height: 22,
+                            borderRadius: 11,
+                            background: textOnly ? "#6366f1" : "#3f3f46",
+                            position: "relative",
+                            transition: "background 0.2s",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 18,
+                              height: 18,
+                              borderRadius: "50%",
+                              background: "#fff",
+                              position: "absolute",
+                              top: 2,
+                              left: textOnly ? 20 : 2,
+                              transition: "left 0.2s",
+                            }}
+                          />
+                        </div>
+                        テキストのみ投稿（画像なし）
+                      </label>
+                    </div>
+                  ) : null;
+                })()}
+                {!textOnly && (<>
                 <div style={s.formGroup}>
                   <label style={s.label}>商品画像（オプション）</label>
                   <div
@@ -1715,6 +1773,7 @@ export default function Dashboard() {
                     ))}
                   </div>
                 </div>
+                </>)}
                 <button
                   style={{
                     ...s.btnPrimary,
@@ -1727,7 +1786,9 @@ export default function Dashboard() {
                   disabled={generating || !selectedAccountId}
                 >
                   {generating ? <div style={s.spinner} /> : Icon.sparkle}
-                  {generating ? `生成中...（${imageCount}枚）` : `AIで生成（${imageCount}枚）`}
+                  {generating
+                    ? (textOnly ? "生成中...（テキストのみ）" : `生成中...（${imageCount}枚）`)
+                    : (textOnly ? "AIで生成（テキストのみ）" : `AIで生成（${imageCount}枚）`)}
                 </button>
               </div>
 
@@ -2349,6 +2410,11 @@ export default function Dashboard() {
                     target_audience: "",
                     posting_frequency: "daily",
                     is_active: true,
+                    character_voice: "",
+                    writing_style: "",
+                    expertise_areas: "",
+                    affiliate_info: "",
+                    cta_goal: "",
                   });
                   setShowAccountForm(true);
                 }}
@@ -2442,6 +2508,63 @@ export default function Dashboard() {
                         placeholder="例: 20〜30代女性"
                         value={editingAccount.target_audience || ""}
                         onChange={(e) => setEditingAccount({ ...editingAccount, target_audience: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  {/* 人格・キャラクター設定 */}
+                  <div style={{ marginTop: 8, marginBottom: 4 }}>
+                    <h4 style={{ fontSize: 14, fontWeight: 700, color: "#a5b4fc", marginBottom: 12, paddingTop: 12, borderTop: "1px solid #27272a" }}>
+                      人格・キャラクター設定
+                    </h4>
+                    <div style={s.formGroup}>
+                      <label style={s.label}>口癖・言い回し</label>
+                      <textarea
+                        style={s.textarea}
+                        placeholder="例: 〜だよね！、マジで、正直に言うと..."
+                        value={editingAccount.character_voice || ""}
+                        onChange={(e) => setEditingAccount({ ...editingAccount, character_voice: e.target.value })}
+                      />
+                    </div>
+                    <div style={s.formGroup}>
+                      <label style={s.label}>投稿スタイル</label>
+                      <textarea
+                        style={s.textarea}
+                        placeholder="例: 短文＋改行多め、絵文字多用、ストーリー仕立て"
+                        value={editingAccount.writing_style || ""}
+                        onChange={(e) => setEditingAccount({ ...editingAccount, writing_style: e.target.value })}
+                      />
+                    </div>
+                    <div style={s.formGroup}>
+                      <label style={s.label}>専門分野</label>
+                      <input
+                        style={s.input}
+                        placeholder="例: AI、テクノロジー、スタートアップ"
+                        value={editingAccount.expertise_areas || ""}
+                        onChange={(e) => setEditingAccount({ ...editingAccount, expertise_areas: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  {/* 収益化設定 */}
+                  <div style={{ marginTop: 8, marginBottom: 4 }}>
+                    <h4 style={{ fontSize: 14, fontWeight: 700, color: "#a5b4fc", marginBottom: 12, paddingTop: 12, borderTop: "1px solid #27272a" }}>
+                      収益化設定
+                    </h4>
+                    <div style={s.formGroup}>
+                      <label style={s.label}>商品・アフィリエイト情報</label>
+                      <textarea
+                        style={s.textarea}
+                        placeholder="例: 商品名、LP URL、アフィリエイトリンク..."
+                        value={editingAccount.affiliate_info || ""}
+                        onChange={(e) => setEditingAccount({ ...editingAccount, affiliate_info: e.target.value })}
+                      />
+                    </div>
+                    <div style={s.formGroup}>
+                      <label style={s.label}>投稿のゴール</label>
+                      <input
+                        style={s.input}
+                        placeholder="例: LP誘導、LINE登録、商品購入、ブランド認知"
+                        value={editingAccount.cta_goal || ""}
+                        onChange={(e) => setEditingAccount({ ...editingAccount, cta_goal: e.target.value })}
                       />
                     </div>
                   </div>
@@ -2625,7 +2748,7 @@ export default function Dashboard() {
                       キャンセル
                     </button>
                     <button style={{ ...s.btnPrimary, opacity: savingAccount ? 0.6 : 1 }} onClick={handleSaveAccount} disabled={savingAccount}>
-                      {savingAccount ? "保存中..." : `${Icon.check} 保存`}
+                      {savingAccount ? "保存中..." : <>{Icon.check} 保存</>}
                     </button>
                   </div>
                 </div>
