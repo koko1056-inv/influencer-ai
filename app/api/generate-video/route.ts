@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { generatePostText, getGeminiApiKey } from "@/lib/gemini";
-import { generateVideoFull, getOpenAIApiKey } from "@/lib/sora";
+import { createVideo, getOpenAIApiKey } from "@/lib/sora";
 
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
@@ -102,8 +102,8 @@ export async function POST(req: NextRequest) {
       videoPrompt = `${analysisContext}\n\nNow create a NEW video with the same style/mood/technique but with this content:\n${videoPrompt}`;
     }
 
-    // Sora 2で動画生成（完了まで待機）
-    const { videoUrl, videoId } = await generateVideoFull(videoPrompt, {
+    // Sora 2でジョブを作成（完了を待たずにすぐ返す）
+    const { videoId, status } = await createVideo(videoPrompt, {
       model: model || "sora-2",
       size: size || "720x1280",
       seconds: seconds || 8,
@@ -114,13 +114,13 @@ export async function POST(req: NextRequest) {
     const hashtagMatches = (postText || "").match(/#[\w\u3000-\u9FFF]+/g);
     const hashtags = hashtagMatches || [];
 
-    // ドラフト投稿をSupabaseに保存（video URLをimage_urlフィールドに保存）
+    // ドラフト投稿をSupabaseに保存（video_idを保存、URLは完了後に更新）
     const { data: post, error: postError } = await supabase
       .from("posts")
       .insert({
         account_id,
         caption: postText,
-        image_url: videoUrl,
+        image_url: null,
         image_prompt: videoPrompt,
         theme: theme || null,
         hashtags,
@@ -134,8 +134,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      video_url: videoUrl,
       video_id: videoId,
+      video_status: status,
       post_id: post?.id || null,
       post_text: postText,
       account_name: account.name,

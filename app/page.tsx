@@ -922,9 +922,10 @@ export default function Dashboard() {
     setGeneratedCaption("");
     setGeneratedPostId(null);
     try {
+      // Step 1: Geminiでテキスト生成 + Soraジョブ作成（すぐ返る）
       const data = await api<{
-        video_url: string;
         video_id: string;
+        video_status: string;
         post_id: string;
         post_text: string;
       }>("/api/generate-video", {
@@ -940,14 +941,46 @@ export default function Dashboard() {
           video_analysis: videoAnalysis,
         }),
       });
-      setGeneratedVideoUrl(data.video_url);
+
       let caption = data.post_text;
       if (hashtags.trim() && !caption.includes(hashtags.trim())) {
         caption = caption.trimEnd() + "\n\n" + hashtags.trim();
       }
       setGeneratedCaption(caption);
       setGeneratedPostId(data.post_id);
-      showToast("動画を生成しました！", "success");
+
+      // Step 2: ポーリングで動画完了を待つ（最大10分）
+      setVideoProgress("Sora 2で動画生成中...");
+      const maxPoll = 120; // 5秒×120 = 10分
+      for (let i = 0; i < maxPoll; i++) {
+        await new Promise((r) => setTimeout(r, 5000));
+        const elapsed = (i + 1) * 5;
+        setVideoProgress(`Sora 2で動画生成中...（${elapsed}秒経過）`);
+        try {
+          const status = await api<{
+            status: string;
+            video_url: string | null;
+            error?: string;
+          }>(`/api/video-status?video_id=${data.video_id}&post_id=${data.post_id || ""}`);
+
+          if (status.status === "completed" && status.video_url) {
+            setGeneratedVideoUrl(status.video_url);
+            showToast("動画を生成しました！", "success");
+            setVideoGenerating(false);
+            setVideoProgress("");
+            return;
+          }
+          if (status.status === "failed") {
+            throw new Error(status.error || "動画生成に失敗しました");
+          }
+        } catch (pollErr: unknown) {
+          if (pollErr instanceof Error && pollErr.message.includes("失敗")) {
+            throw pollErr;
+          }
+          // ネットワークエラーなどは無視してリトライ
+        }
+      }
+      throw new Error("動画生成がタイムアウトしました（10分）");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "動画生成に失敗しました";
       showToast(msg, "error");
