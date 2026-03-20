@@ -157,7 +157,7 @@ ${account.target_audience}${extraPersona}
 {"post_text": "投稿テキスト", "image_prompt": "英語の画像生成プロンプト"}`;
 
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
+    model: "gemini-3.1-flash-lite-preview",
     systemInstruction: systemPrompt,
   });
 
@@ -250,7 +250,7 @@ Make it vibrant and eye-catching.`;
 
   try {
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-3.1-flash-image-preview",
     });
 
     // マルチモーダル: アバター画像 + 商品画像 + テキストプロンプト
@@ -424,7 +424,7 @@ LinkedInの投稿画像として適切な、プロフェッショナルでクリ
 {"post_text": "LinkedIn投稿テキスト（改行あり）", "image_prompt": "英語の画像生成プロンプト", "headline": "投稿の見出し（20文字以内）"}`;
 
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
+    model: "gemini-3.1-flash-lite-preview",
     systemInstruction: systemPrompt,
   });
 
