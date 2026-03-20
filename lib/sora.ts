@@ -50,7 +50,8 @@ export async function createVideo(
     prompt,
     // @ts-expect-error - SDK types may not include all valid sizes
     size: options?.size || "1080x1920",
-    duration: options?.seconds || 8,
+    // @ts-expect-error - seconds accepts string
+    seconds: String(options?.seconds || 8),
   });
 
   return {
@@ -133,7 +134,8 @@ export async function generateVideoFull(
     prompt,
     // @ts-expect-error - SDK types may not include all valid sizes
     size: options?.size || "1080x1920",
-    duration: options?.seconds || 8,
+    // @ts-expect-error - seconds accepts string
+    seconds: String(options?.seconds || 8),
   });
 
   // ポーリングで完了を待機（最大5分）
