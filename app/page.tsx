@@ -959,7 +959,13 @@ export default function Dashboard() {
         const min = Math.floor(elapsed / 60);
         const sec = elapsed % 60;
         const timeStr = min > 0 ? `${min}分${sec > 0 ? sec + "秒" : ""}` : `${sec}秒`;
-        setVideoProgress(`Sora 2で動画生成中...（${timeStr}経過）`);
+        if (elapsed >= 600) {
+          setVideoProgress(`Sora 2で動画生成中...（${timeStr}経過）⚠️ サーバー混雑の可能性`);
+        } else if (elapsed >= 300) {
+          setVideoProgress(`Sora 2で動画生成中...（${timeStr}経過）通常より時間がかかっています`);
+        } else {
+          setVideoProgress(`Sora 2で動画生成中...（${timeStr}経過）`);
+        }
         try {
           const status = await api<{
             status: string;
@@ -983,7 +989,7 @@ export default function Dashboard() {
       }
 
       if (!videoCompleted) {
-        throw new Error("動画生成がタイムアウトしました（15分）");
+        throw new Error("動画生成がタイムアウトしました（15分）。Sora 2のサーバーが混雑している可能性があります。しばらく待ってからもう一度お試しください。");
       }
 
       // Step 3: 動画をダウンロード＆Supabaseにアップロード（別エンドポイント、maxDuration=300s）
