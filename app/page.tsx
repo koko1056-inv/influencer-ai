@@ -2013,7 +2013,7 @@ export default function Dashboard() {
                           background: "#0c0c12",
                           position: "relative",
                         }}
-                        onClick={() => document.getElementById("ref-image-input")?.click()}
+                        onClick={() => document.getElementById("ref-image-input-video")?.click()}
                       >
                         <input
                           id="ref-image-input-video"
