@@ -37,7 +37,7 @@ export async function createVideo(
   prompt: string,
   options?: {
     model?: "sora-2" | "sora-2-pro";
-    size?: "1280x720" | "1920x1080" | "1080x1920" | "848x480" | "480x848";
+    size?: "1280x720" | "720x1280";
     seconds?: 8 | 20;
     apiKey?: string;
   }
@@ -48,8 +48,7 @@ export async function createVideo(
   const video = await openai.videos.create({
     model: options?.model || "sora-2",
     prompt,
-    // @ts-expect-error - SDK types may not include all valid sizes
-    size: options?.size || "1080x1920",
+    size: options?.size || "720x1280",
     // @ts-expect-error - seconds accepts string
     seconds: String(options?.seconds || 8),
   });
@@ -120,7 +119,7 @@ export async function generateVideoFull(
   prompt: string,
   options?: {
     model?: "sora-2" | "sora-2-pro";
-    size?: "1280x720" | "1920x1080" | "1080x1920" | "848x480" | "480x848";
+    size?: "1280x720" | "720x1280";
     seconds?: 8 | 20;
     apiKey?: string;
   }
@@ -132,8 +131,7 @@ export async function generateVideoFull(
   const job = await openai.videos.create({
     model: options?.model || "sora-2",
     prompt,
-    // @ts-expect-error - SDK types may not include all valid sizes
-    size: options?.size || "1080x1920",
+    size: options?.size || "720x1280",
     // @ts-expect-error - seconds accepts string
     seconds: String(options?.seconds || 8),
   });

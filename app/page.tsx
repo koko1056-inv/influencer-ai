@@ -611,7 +611,7 @@ export default function Dashboard() {
   // Video generation state
   const [videoMode, setVideoMode] = useState(false);
   const [videoModel, setVideoModel] = useState<"sora-2" | "sora-2-pro">("sora-2");
-  const [videoSize, setVideoSize] = useState("1080x1920");
+  const [videoSize, setVideoSize] = useState("720x1280");
   const [videoDuration, setVideoDuration] = useState<8 | 20>(8);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const [videoGenerating, setVideoGenerating] = useState(false);
@@ -1986,11 +1986,8 @@ export default function Dashboard() {
                       <div style={s.formGroup}>
                         <label style={s.label}>サイズ</label>
                         <select style={s.select as React.CSSProperties} value={videoSize} onChange={(e) => setVideoSize(e.target.value)}>
-                          <option value="1080x1920">縦型 1080x1920（Reels/TikTok）</option>
-                          <option value="1920x1080">横型 1920x1080（YouTube）</option>
-                          <option value="1280x720">横型 1280x720</option>
-                          <option value="480x848">縦型 480x848（軽量）</option>
-                          <option value="848x480">横型 848x480（軽量）</option>
+                          <option value="720x1280">縦型 720x1280（Reels/TikTok）</option>
+                          <option value="1280x720">横型 1280x720（YouTube）</option>
                         </select>
                       </div>
                       <div style={s.formGroup}>

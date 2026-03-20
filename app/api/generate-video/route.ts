@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
     // Sora 2で動画生成（完了まで待機）
     const { videoUrl, videoId } = await generateVideoFull(videoPrompt, {
       model: model || "sora-2",
-      size: size || "1080x1920",
+      size: size || "720x1280",
       seconds: seconds || 8,
       apiKey: openaiApiKey,
     });
