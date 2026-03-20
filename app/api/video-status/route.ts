@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkVideoStatus, downloadAndUploadVideo, getOpenAIApiKey } from "@/lib/sora";
-import { supabase } from "@/lib/supabase";
+import { checkVideoStatus, getOpenAIApiKey } from "@/lib/sora";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 30;
 
+/**
+ * ステータス確認のみ（軽量）。ダウンロードは /api/video-download で行う。
+ */
 export async function GET(req: NextRequest) {
   try {
     const videoId = req.nextUrl.searchParams.get("video_id");
-    const postId = req.nextUrl.searchParams.get("post_id");
 
     if (!videoId) {
       return NextResponse.json(
@@ -19,33 +20,6 @@ export async function GET(req: NextRequest) {
 
     const apiKey = await getOpenAIApiKey();
     const result = await checkVideoStatus(videoId, apiKey);
-
-    // 完了した場合、動画をダウンロード＆Supabaseにアップロード
-    if (result.status === "completed") {
-      try {
-        const videoUrl = await downloadAndUploadVideo(videoId, apiKey);
-
-        // post_idがあればDBを更新
-        if (postId) {
-          await supabase
-            .from("posts")
-            .update({ image_url: videoUrl })
-            .eq("id", postId);
-        }
-
-        return NextResponse.json({
-          status: "completed",
-          video_url: videoUrl,
-        });
-      } catch (dlErr: any) {
-        console.error("動画ダウンロードエラー:", dlErr);
-        return NextResponse.json({
-          status: "completed",
-          video_url: null,
-          error: `動画のダウンロードに失敗: ${dlErr.message}`,
-        });
-      }
-    }
 
     return NextResponse.json({
       status: result.status,

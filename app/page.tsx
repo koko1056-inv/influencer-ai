@@ -949,26 +949,27 @@ export default function Dashboard() {
       setGeneratedCaption(caption);
       setGeneratedPostId(data.post_id);
 
-      // Step 2: ポーリングで動画完了を待つ（最大10分）
+      // Step 2: ポーリングで動画完了を待つ（最大15分）
       setVideoProgress("Sora 2で動画生成中...");
-      const maxPoll = 120; // 5秒×120 = 10分
+      const maxPoll = 180; // 5秒×180 = 15分
+      let videoCompleted = false;
       for (let i = 0; i < maxPoll; i++) {
         await new Promise((r) => setTimeout(r, 5000));
         const elapsed = (i + 1) * 5;
-        setVideoProgress(`Sora 2で動画生成中...（${elapsed}秒経過）`);
+        const min = Math.floor(elapsed / 60);
+        const sec = elapsed % 60;
+        const timeStr = min > 0 ? `${min}分${sec > 0 ? sec + "秒" : ""}` : `${sec}秒`;
+        setVideoProgress(`Sora 2で動画生成中...（${timeStr}経過）`);
         try {
           const status = await api<{
             status: string;
             video_url: string | null;
             error?: string;
-          }>(`/api/video-status?video_id=${data.video_id}&post_id=${data.post_id || ""}`);
+          }>(`/api/video-status?video_id=${data.video_id}`);
 
-          if (status.status === "completed" && status.video_url) {
-            setGeneratedVideoUrl(status.video_url);
-            showToast("動画を生成しました！", "success");
-            setVideoGenerating(false);
-            setVideoProgress("");
-            return;
+          if (status.status === "completed") {
+            videoCompleted = true;
+            break;
           }
           if (status.status === "failed") {
             throw new Error(status.error || "動画生成に失敗しました");
@@ -980,7 +981,34 @@ export default function Dashboard() {
           // ネットワークエラーなどは無視してリトライ
         }
       }
-      throw new Error("動画生成がタイムアウトしました（10分）");
+
+      if (!videoCompleted) {
+        throw new Error("動画生成がタイムアウトしました（15分）");
+      }
+
+      // Step 3: 動画をダウンロード＆Supabaseにアップロード（別エンドポイント、maxDuration=300s）
+      setVideoProgress("動画をダウンロード中...");
+      const dlResult = await api<{
+        status: string;
+        video_url: string;
+        error?: string;
+      }>("/api/video-download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          video_id: data.video_id,
+          post_id: data.post_id || null,
+        }),
+      });
+
+      if (dlResult.video_url) {
+        setGeneratedVideoUrl(dlResult.video_url);
+        showToast("動画を生成しました！", "success");
+        setVideoGenerating(false);
+        setVideoProgress("");
+        return;
+      }
+      throw new Error(dlResult.error || "動画のダウンロードに失敗しました");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "動画生成に失敗しました";
       showToast(msg, "error");
