@@ -598,6 +598,10 @@ export default function Dashboard() {
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const [videoGenerating, setVideoGenerating] = useState(false);
   const [videoProgress, setVideoProgress] = useState("");
+  const [referenceVideo, setReferenceVideo] = useState<string | null>(null);
+  const [referenceVideoMime, setReferenceVideoMime] = useState("video/mp4");
+  const [videoAnalysis, setVideoAnalysis] = useState<any | null>(null);
+  const [analyzingVideo, setAnalyzingVideo] = useState(false);
 
   // Auto-post settings
   const [autoPostEnabled, setAutoPostEnabled] = useState(false);
@@ -849,6 +853,48 @@ export default function Dashboard() {
     setPosting(false);
   };
 
+  /* ─── Reference Video Upload & Analysis ─── */
+  const handleReferenceVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("video/")) {
+      showToast("動画ファイルを選択してください", "error");
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      showToast("動画ファイルは50MB以下にしてください", "error");
+      return;
+    }
+    setReferenceVideoMime(file.type);
+    setVideoAnalysis(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setReferenceVideo(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAnalyzeVideo = async () => {
+    if (!referenceVideo) return;
+    setAnalyzingVideo(true);
+    try {
+      const data = await api<{ analysis: any; success: boolean }>("/api/analyze-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          video_data: referenceVideo,
+          mime_type: referenceVideoMime,
+        }),
+      });
+      setVideoAnalysis(data.analysis);
+      showToast("動画の分析が完了しました！", "success");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "動画の分析に失敗しました";
+      showToast(msg, "error");
+    }
+    setAnalyzingVideo(false);
+  };
+
   /* ─── Generate Video ─── */
   const handleGenerateVideo = async () => {
     if (!selectedAccountId) return;
@@ -873,6 +919,7 @@ export default function Dashboard() {
           size: videoSize,
           seconds: videoDuration,
           reference_image: referenceImage,
+          video_analysis: videoAnalysis,
         }),
       });
       setGeneratedVideoUrl(data.video_url);
@@ -1840,6 +1887,130 @@ export default function Dashboard() {
                       </div>
                       <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
                         参照画像をアップロードすると、その画像をベースにした動画を生成します
+                      </p>
+                    </div>
+                    {/* 参考動画アップロード */}
+                    <div style={s.formGroup}>
+                      <label style={s.label}>参考動画（オプション）</label>
+                      <div
+                        style={{
+                          border: "2px dashed #2a2a3a",
+                          borderRadius: 10,
+                          padding: referenceVideo ? 8 : 24,
+                          textAlign: "center",
+                          cursor: "pointer",
+                          background: "#0c0c12",
+                          position: "relative",
+                        }}
+                        onClick={() => document.getElementById("ref-video-input")?.click()}
+                      >
+                        <input
+                          id="ref-video-input"
+                          type="file"
+                          accept="video/*"
+                          style={{ display: "none" }}
+                          onChange={handleReferenceVideoUpload}
+                        />
+                        {referenceVideo ? (
+                          <div style={{ position: "relative" }}>
+                            <video
+                              src={referenceVideo}
+                              style={{ maxWidth: "100%", maxHeight: 120, borderRadius: 8 }}
+                              muted
+                            />
+                            <button
+                              style={{
+                                position: "absolute",
+                                top: 4,
+                                right: 4,
+                                background: "#ef4444",
+                                border: "none",
+                                borderRadius: 6,
+                                color: "#fff",
+                                padding: "2px 8px",
+                                fontSize: 12,
+                                cursor: "pointer",
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setReferenceVideo(null);
+                                setVideoAnalysis(null);
+                              }}
+                            >
+                              削除
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div style={{ color: "#52525b", marginBottom: 4 }}>{Icon.upload}</div>
+                            <p style={{ fontSize: 13, color: "#52525b" }}>
+                              クリックして参考動画をアップロード（50MB以下）
+                            </p>
+                          </>
+                        )}
+                      </div>
+                      {referenceVideo && !videoAnalysis && (
+                        <button
+                          style={{
+                            ...s.btnPrimary,
+                            width: "100%",
+                            justifyContent: "center",
+                            marginTop: 8,
+                            background: "linear-gradient(135deg, #8b5cf6, #6d28d9)",
+                            opacity: analyzingVideo ? 0.6 : 1,
+                            pointerEvents: analyzingVideo ? "none" : "auto",
+                          }}
+                          onClick={handleAnalyzeVideo}
+                          disabled={analyzingVideo}
+                        >
+                          {analyzingVideo ? <><div style={s.spinner} /> Geminiで動画を分析中...</> : <>🔍 動画をAIで分析</>}
+                        </button>
+                      )}
+                      {videoAnalysis && (
+                        <div style={{
+                          marginTop: 8,
+                          padding: 12,
+                          background: "#0f0f1a",
+                          borderRadius: 10,
+                          border: "1px solid #27273a",
+                          fontSize: 13,
+                          color: "#a1a1aa",
+                        }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <span style={{ color: "#a5b4fc", fontWeight: 600, fontSize: 14 }}>分析結果</span>
+                            <button
+                              style={{ background: "none", border: "none", color: "#71717a", cursor: "pointer", fontSize: 12 }}
+                              onClick={() => setVideoAnalysis(null)}
+                            >
+                              クリア
+                            </button>
+                          </div>
+                          <div style={{ display: "grid", gap: 6 }}>
+                            <div><span style={{ color: "#818cf8" }}>スタイル:</span> {videoAnalysis.style}</div>
+                            <div><span style={{ color: "#818cf8" }}>ムード:</span> {videoAnalysis.overall_mood}</div>
+                            <div><span style={{ color: "#818cf8" }}>カラー:</span> {videoAnalysis.color_palette}</div>
+                            <div><span style={{ color: "#818cf8" }}>被写体:</span> {videoAnalysis.subject}</div>
+                            <div><span style={{ color: "#818cf8" }}>遷移:</span> {videoAnalysis.transitions}</div>
+                            {videoAnalysis.scenes?.length > 0 && (
+                              <div>
+                                <span style={{ color: "#818cf8" }}>シーン ({videoAnalysis.scenes.length}):</span>
+                                <div style={{ marginTop: 4, paddingLeft: 8 }}>
+                                  {videoAnalysis.scenes.map((scene: any, i: number) => (
+                                    <div key={i} style={{ marginBottom: 4, fontSize: 12 }}>
+                                      <span style={{ color: "#6366f1" }}>[{scene.camera_movement}]</span> {scene.description} <span style={{ color: "#52525b" }}>({scene.duration_hint})</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <p style={{ marginTop: 8, fontSize: 11, color: "#52525b" }}>
+                            この分析データがSora 2のプロンプトに自動反映されます
+                          </p>
+                        </div>
+                      )}
+                      <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
+                        参考動画をアップロード→分析すると、スタイルや構成を再現した動画を生成します
                       </p>
                     </div>
                   </>
