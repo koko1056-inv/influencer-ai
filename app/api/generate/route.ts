@@ -5,7 +5,7 @@ import { uploadImageFromBase64 } from "@/lib/storage";
 
 export async function POST(req: NextRequest) {
   try {
-    const { account_id, theme, image_count, reference_image } = await req.json();
+    const { account_id, theme, image_count, image_style, reference_image } = await req.json();
 
     if (!account_id) {
       return NextResponse.json(
@@ -70,7 +70,8 @@ export async function POST(req: NextRequest) {
           content.image_prompt,
           requestedCount,
           apiKey,
-          reference_image || null
+          reference_image || null,
+          image_style || "natural"
         );
 
         // 各画像をSupabase Storageにアップロード

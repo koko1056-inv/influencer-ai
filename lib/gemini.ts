@@ -210,13 +210,28 @@ export async function generateImage(
   account: AccountForGeneration,
   imagePrompt: string,
   apiKey?: string,
-  referenceImageUrl?: string | null
+  referenceImageUrl?: string | null,
+  imageStyle?: string
 ): Promise<string | null> {
   const key = apiKey || (await getGeminiApiKey());
   const genAI = createGenAI(key);
 
   const hasAvatar = !!account.avatar_url;
   const hasReference = !!referenceImageUrl;
+
+  // スタイル別の追加プロンプト
+  const stylePrompts: Record<string, string> = {
+    natural: "Photorealistic, natural lighting, candid lifestyle photography, authentic and genuine feel. Shot as if by a friend with a high-end smartphone.",
+    magazine: "High-fashion magazine editorial style. Bold large text overlay with headline in Japanese, clean layout with strong typography, professional studio lighting, polished and aspirational. Include stylish text overlay as part of the image design.",
+    "text-overlay": "Social media post with prominent stylish text overlay in Japanese. Large readable caption text integrated into the image design, like a motivational quote card or tip card. Bold sans-serif font, high contrast text with subtle background.",
+    infographic: "Clean infographic style with numbered list or ranking format. Organized layout with icons, numbered steps, or comparison cards. Modern flat design with bold colors and clear hierarchy. Data visualization feel. Include Japanese text labels.",
+    scrapbook: "Vintage scrapbook collage style with ripped paper edges, polaroid frames, sticky tape, handwritten annotations, doodles, and stickers. Warm nostalgic aesthetic with layered textures and depth.",
+    cinematic: "Cinematic movie still aesthetic. Dramatic lighting with lens flare or bokeh, color graded with teal-orange or moody tones, shallow depth of field. Film grain texture.",
+    minimal: "Minimalist clean design with abundant white space. Simple composition, muted color palette, elegant and sophisticated. Product-focused with clean background. Less is more aesthetic.",
+    meme: "Internet meme style with bold Impact-style text overlay (top and bottom text format) in Japanese. Humorous, relatable, shareable. Exaggerated expressions or situations. Bright saturated colors, attention-grabbing.",
+    aesthetic: "Y2K aesthetic or Korean-inspired (Hallyu) dreamy style. Soft pastel gradients, sparkles, holographic elements, blurred backgrounds, ethereal glow effects. Trendy and aspirational for Gen Z audience.",
+  };
+  const styleInstruction = stylePrompts[imageStyle || "natural"] || stylePrompts.natural;
 
   let fullPrompt: string;
   if (hasAvatar && hasReference) {
@@ -228,13 +243,15 @@ INSTRUCTIONS:
 - Scene description: ${imagePrompt}
 - The person should be naturally using or showcasing the product in a real-life setting.
 - Make it look like a genuine influencer Instagram post — not an advertisement.
-- Photorealistic, high quality, natural lighting, vibrant colors.
-- The product must be clearly visible and recognizable in the image.`;
+- The product must be clearly visible and recognizable in the image.
+
+VISUAL STYLE: ${styleInstruction}`;
   } else if (hasAvatar) {
     fullPrompt = `Using the reference photo of this person as a visual guide, generate a new social media post image: ${imagePrompt}.
 The generated image should feature a person who looks similar to the reference photo (same general appearance, style, and vibe).
-Make it photorealistic, vibrant, and eye-catching — suitable for an influencer's Instagram post.
-IMPORTANT: Create a NEW scene based on the prompt, but keep the person's appearance consistent with the reference.`;
+IMPORTANT: Create a NEW scene based on the prompt, but keep the person's appearance consistent with the reference.
+
+VISUAL STYLE: ${styleInstruction}`;
   } else if (hasReference) {
     fullPrompt = `TASK: Generate a social media photo featuring the product shown in the reference image.
 
@@ -243,11 +260,13 @@ INSTRUCTIONS:
 - Scene description: ${imagePrompt}
 - The product must be clearly visible and recognizable.
 - Make it look like a genuine influencer post — natural, not an advertisement.
-- Photorealistic, high quality, natural lighting, vibrant colors.`;
+
+VISUAL STYLE: ${styleInstruction}`;
   } else {
     fullPrompt = `Generate a high-quality, visually appealing social media image: ${imagePrompt}.
-The image should be photorealistic and suitable for an influencer's social media post.
-Make it vibrant and eye-catching.`;
+The image should be suitable for an influencer's social media post.
+
+VISUAL STYLE: ${styleInstruction}`;
   }
 
   try {
@@ -309,7 +328,8 @@ export async function generateMultipleImages(
   imagePrompt: string,
   count: number = 1,
   apiKey?: string,
-  referenceImageUrl?: string | null
+  referenceImageUrl?: string | null,
+  imageStyle?: string
 ): Promise<string[]> {
   const safeCount = Math.min(Math.max(count, 1), 5);
   const results: string[] = [];
@@ -324,7 +344,8 @@ export async function generateMultipleImages(
         account,
         imagePrompt + variationSuffix,
         apiKey,
-        referenceImageUrl
+        referenceImageUrl,
+        imageStyle
       );
       if (result) {
         results.push(result);

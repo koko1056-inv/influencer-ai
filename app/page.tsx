@@ -3,6 +3,75 @@
 import { useState, useEffect, useCallback } from "react";
 
 /* ═══════════════════════════════════════════════════
+   Image Style Definitions
+   ═══════════════════════════════════════════════════ */
+const IMAGE_STYLES = [
+  {
+    id: "natural",
+    label: "ナチュラル",
+    emoji: "📷",
+    desc: "自然な日常感",
+    prompt: "Photorealistic, natural lighting, candid lifestyle photography, authentic and genuine feel. Shot as if by a friend with a high-end smartphone.",
+  },
+  {
+    id: "magazine",
+    label: "マガジン風",
+    emoji: "📰",
+    desc: "雑誌表紙のような洗練されたレイアウト",
+    prompt: "High-fashion magazine editorial style. Bold large text overlay with headline, clean layout with strong typography, professional studio lighting, polished and aspirational. Include stylish text overlay as part of the image design.",
+  },
+  {
+    id: "text-overlay",
+    label: "字幕・テキスト付き",
+    emoji: "💬",
+    desc: "キャッチコピー入り画像",
+    prompt: "Social media post with prominent stylish text overlay in Japanese. Large readable caption text integrated into the image design, like a motivational quote card or tip card. Bold sans-serif font, high contrast text with subtle background.",
+  },
+  {
+    id: "infographic",
+    label: "インフォグラフィック",
+    emoji: "📊",
+    desc: "情報整理・ランキング形式",
+    prompt: "Clean infographic style with numbered list or ranking format. Organized layout with icons, numbered steps, or comparison cards. Modern flat design with bold colors and clear hierarchy. Data visualization feel.",
+  },
+  {
+    id: "scrapbook",
+    label: "スクラップブック",
+    emoji: "🎨",
+    desc: "コラージュ・手作り感",
+    prompt: "Vintage scrapbook collage style with ripped paper edges, polaroid frames, sticky tape, handwritten annotations, doodles, and stickers. Warm nostalgic aesthetic with layered textures and depth.",
+  },
+  {
+    id: "cinematic",
+    label: "シネマティック",
+    emoji: "🎬",
+    desc: "映画のワンシーン風",
+    prompt: "Cinematic movie still aesthetic. Wide aspect feel, dramatic lighting with lens flare or bokeh, color graded with teal-orange or moody tones, shallow depth of field. Film grain texture.",
+  },
+  {
+    id: "minimal",
+    label: "ミニマル",
+    emoji: "⬜",
+    desc: "余白を活かしたシンプル",
+    prompt: "Minimalist clean design with abundant white space. Simple composition, muted color palette, elegant and sophisticated. Product-focused with clean background. Less is more aesthetic.",
+  },
+  {
+    id: "meme",
+    label: "ミーム・ネタ系",
+    emoji: "😂",
+    desc: "共感・シェアされやすい",
+    prompt: "Internet meme style with bold Impact-style text overlay (top and bottom text format). Humorous, relatable, shareable. Exaggerated expressions or situations. Bright saturated colors, attention-grabbing.",
+  },
+  {
+    id: "aesthetic",
+    label: "エモ・エステティック",
+    emoji: "✨",
+    desc: "Y2K/韓国風おしゃれ",
+    prompt: "Y2K aesthetic or Korean-inspired (Hallyu) dreamy style. Soft pastel gradients, sparkles, holographic elements, blurred backgrounds, ethereal glow effects. Trendy and aspirational for Gen Z audience.",
+  },
+] as const;
+
+/* ═══════════════════════════════════════════════════
    Types
    ═══════════════════════════════════════════════════ */
 interface Account {
@@ -598,6 +667,7 @@ export default function Dashboard() {
   const [hashtags, setHashtags] = useState("");
   const [imageCount, setImageCount] = useState(1);
   const [textOnly, setTextOnly] = useState(false);
+  const [imageStyle, setImageStyle] = useState("natural");
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
   const [generatedCaption, setGeneratedCaption] = useState("");
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
@@ -797,6 +867,7 @@ export default function Dashboard() {
           account_id: selectedAccountId,
           theme,
           image_count: textOnly ? 0 : imageCount,
+          image_style: textOnly ? undefined : imageStyle,
           reference_image: textOnly ? null : referenceImage,
         }),
       });
@@ -2396,6 +2467,37 @@ export default function Dashboard() {
                         onClick={() => setImageCount(n)}
                       >
                         {n}枚
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={s.formGroup}>
+                  <label style={s.label}>画像スタイル</label>
+                  <p style={{ fontSize: 12, color: "#52525b", marginTop: -4, marginBottom: 8 }}>
+                    投稿の目的に合ったスタイルを選択
+                  </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                    {IMAGE_STYLES.map((st) => (
+                      <button
+                        key={st.id}
+                        style={{
+                          padding: "10px 6px",
+                          borderRadius: 10,
+                          border: imageStyle === st.id ? "2px solid #6366f1" : "1px solid #2a2a3a",
+                          background: imageStyle === st.id ? "#6366f115" : "#0c0c12",
+                          color: imageStyle === st.id ? "#e0e7ff" : "#a1a1aa",
+                          fontSize: 12,
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          transition: "all 0.15s",
+                          textAlign: "center",
+                          lineHeight: 1.3,
+                        }}
+                        onClick={() => setImageStyle(st.id)}
+                        title={st.desc}
+                      >
+                        <span style={{ fontSize: 18, display: "block", marginBottom: 2 }}>{st.emoji}</span>
+                        {st.label}
                       </button>
                     ))}
                   </div>
