@@ -668,7 +668,9 @@ export default function Dashboard() {
   const [imageCount, setImageCount] = useState(1);
   const [textOnly, setTextOnly] = useState(false);
   const [imageStyle, setImageStyle] = useState("natural");
-  const [overlayText, setOverlayText] = useState("");
+  const [overlayTextTop, setOverlayTextTop] = useState("");
+  const [overlayTextMiddle, setOverlayTextMiddle] = useState("");
+  const [overlayTextBottom, setOverlayTextBottom] = useState("");
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
   const [generatedCaption, setGeneratedCaption] = useState("");
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
@@ -869,7 +871,11 @@ export default function Dashboard() {
           theme,
           image_count: textOnly ? 0 : imageCount,
           image_style: textOnly ? undefined : imageStyle,
-          overlay_text: textOnly ? undefined : overlayText.trim() || undefined,
+          overlay_text: textOnly ? undefined : {
+            top: overlayTextTop.trim() || undefined,
+            middle: overlayTextMiddle.trim() || undefined,
+            bottom: overlayTextBottom.trim() || undefined,
+          },
           reference_image: textOnly ? null : referenceImage,
         }),
       });
@@ -2506,16 +2512,41 @@ export default function Dashboard() {
                 </div>
                 <div style={s.formGroup}>
                   <label style={s.label}>テキストオーバーレイ（オプション）</label>
-                  <input
-                    type="text"
-                    style={s.input as React.CSSProperties}
-                    placeholder="例: 今日のおすすめ3選、知らないと損する裏ワザ..."
-                    value={overlayText}
-                    onChange={(e) => setOverlayText(e.target.value)}
-                  />
-                  <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
-                    画像に表示するテキスト。空欄ならAIがスタイルに合ったテキストを自動生成します
+                  <p style={{ fontSize: 12, color: "#52525b", marginTop: -4, marginBottom: 8 }}>
+                    各位置にテキストを入力。空欄ならAIが自動生成します
                   </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, color: "#71717a", minWidth: 24, textAlign: "center" }}>上</span>
+                      <input
+                        type="text"
+                        style={{ ...(s.input as React.CSSProperties), flex: 1, margin: 0 }}
+                        placeholder="例: 知らないと損する"
+                        value={overlayTextTop}
+                        onChange={(e) => setOverlayTextTop(e.target.value)}
+                      />
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, color: "#71717a", minWidth: 24, textAlign: "center" }}>中</span>
+                      <input
+                        type="text"
+                        style={{ ...(s.input as React.CSSProperties), flex: 1, margin: 0 }}
+                        placeholder="例: カフェ巡り3選"
+                        value={overlayTextMiddle}
+                        onChange={(e) => setOverlayTextMiddle(e.target.value)}
+                      />
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, color: "#71717a", minWidth: 24, textAlign: "center" }}>下</span>
+                      <input
+                        type="text"
+                        style={{ ...(s.input as React.CSSProperties), flex: 1, margin: 0 }}
+                        placeholder="例: 保存して見返してね！"
+                        value={overlayTextBottom}
+                        onChange={(e) => setOverlayTextBottom(e.target.value)}
+                      />
+                    </div>
+                  </div>
                 </div>
                 </>)}
                   </>

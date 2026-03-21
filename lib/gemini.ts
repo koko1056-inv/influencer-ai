@@ -212,7 +212,7 @@ export async function generateImage(
   apiKey?: string,
   referenceImageUrl?: string | null,
   imageStyle?: string,
-  overlayText?: string | null
+  overlayText?: { top?: string; middle?: string; bottom?: string } | null
 ): Promise<string | null> {
   const key = apiKey || (await getGeminiApiKey());
   const genAI = createGenAI(key);
@@ -234,16 +234,27 @@ export async function generateImage(
   };
   const styleInstruction = stylePrompts[imageStyle || "natural"] || stylePrompts.natural;
 
-  // テキストオーバーレイ指示
+  // テキストオーバーレイ指示（位置別: 上・中・下）
   const textOverlayStyles = ["magazine", "text-overlay", "infographic", "meme"];
-  const wantsTextOverlay = textOverlayStyles.includes(imageStyle || "natural") || !!overlayText;
+  const hasAnyOverlay = overlayText && (overlayText.top || overlayText.middle || overlayText.bottom);
+  const wantsTextOverlay = textOverlayStyles.includes(imageStyle || "natural") || hasAnyOverlay;
   let overlayInstruction = "";
   if (wantsTextOverlay) {
-    if (overlayText) {
-      overlayInstruction = `\n\nTEXT OVERLAY: Render the following text prominently on the image in stylish, readable typography: "${overlayText}". The text must be clearly legible, well-positioned, and integrated into the design. Use Japanese text.`;
+    const lines: string[] = [];
+    if (hasAnyOverlay) {
+      lines.push("\n\nTEXT OVERLAY — Render the following Japanese text on the image with stylish, readable typography:");
+      if (overlayText.top) lines.push(`- TOP of image: "${overlayText.top}" (smaller subheading or label text at the top area)`);
+      if (overlayText.middle) lines.push(`- CENTER of image: "${overlayText.middle}" (large, bold main headline in the center)`);
+      if (overlayText.bottom) lines.push(`- BOTTOM of image: "${overlayText.bottom}" (call-to-action or closing text at the bottom)`);
+      lines.push("Each text must be clearly legible, well-positioned at the specified location, and integrated into the design.");
     } else {
-      overlayInstruction = `\n\nTEXT OVERLAY: Generate and render appropriate catchy Japanese text/headline on the image that fits the content and style. The text should be attention-grabbing, concise (1-2 lines), and well-integrated into the design with clear typography.`;
+      lines.push("\n\nTEXT OVERLAY — Generate and render appropriate catchy Japanese text on the image:");
+      lines.push("- TOP: A small category label or hook text");
+      lines.push("- CENTER: A bold, attention-grabbing main headline (1 line)");
+      lines.push("- BOTTOM: A call-to-action like 保存してね or 詳しくはプロフへ");
+      lines.push("Use stylish, readable typography. Position each text clearly at the specified location.");
     }
+    overlayInstruction = lines.join("\n");
   }
 
   let fullPrompt: string;
@@ -343,7 +354,7 @@ export async function generateMultipleImages(
   apiKey?: string,
   referenceImageUrl?: string | null,
   imageStyle?: string,
-  overlayText?: string | null
+  overlayText?: { top?: string; middle?: string; bottom?: string } | null
 ): Promise<string[]> {
   const safeCount = Math.min(Math.max(count, 1), 5);
   const results: string[] = [];
