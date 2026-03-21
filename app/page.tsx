@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 /* ═══════════════════════════════════════════════════
    Image Style Definitions
@@ -693,6 +693,110 @@ export default function Dashboard() {
   const [referenceVideoMime, setReferenceVideoMime] = useState("video/mp4");
   const [videoAnalysis, setVideoAnalysis] = useState<any | null>(null);
   const [analyzingVideo, setAnalyzingVideo] = useState(false);
+
+  // ── プラットフォーム別の状態保存 ──
+  interface PlatformSnapshot {
+    selectedAccountId: string;
+    theme: string;
+    hashtags: string;
+    imageCount: number;
+    textOnly: boolean;
+    imageStyle: string;
+    overlayTextTop: string;
+    overlayTextMiddle: string;
+    overlayTextBottom: string;
+    referenceImage: string | null;
+    generatedCaption: string;
+    generatedImage: string | null;
+    generatedImages: string[];
+    generatedImageUrls: string[];
+    selectedImageIndex: number;
+    generatedPostId: string | null;
+    videoMode: boolean;
+    videoModel: "sora-2" | "sora-2-pro";
+    videoSize: string;
+    videoDuration: 4 | 8 | 12;
+    generatedVideoUrl: string | null;
+    referenceVideo: string | null;
+    referenceVideoMime: string;
+    videoAnalysis: any | null;
+  }
+
+  const platformSnapshots = useRef<Record<string, PlatformSnapshot>>({});
+
+  const savePlatformState = useCallback((viewId: string) => {
+    const platformViews = ["instagram", "tiktok", "x", "linkedin", "create"];
+    if (!platformViews.includes(viewId)) return;
+    platformSnapshots.current[viewId] = {
+      selectedAccountId, theme, hashtags, imageCount, textOnly, imageStyle,
+      overlayTextTop, overlayTextMiddle, overlayTextBottom, referenceImage,
+      generatedCaption, generatedImage, generatedImages, generatedImageUrls,
+      selectedImageIndex, generatedPostId,
+      videoMode, videoModel, videoSize, videoDuration, generatedVideoUrl,
+      referenceVideo, referenceVideoMime, videoAnalysis,
+    };
+  }, [selectedAccountId, theme, hashtags, imageCount, textOnly, imageStyle,
+    overlayTextTop, overlayTextMiddle, overlayTextBottom, referenceImage,
+    generatedCaption, generatedImage, generatedImages, generatedImageUrls,
+    selectedImageIndex, generatedPostId,
+    videoMode, videoModel, videoSize, videoDuration, generatedVideoUrl,
+    referenceVideo, referenceVideoMime, videoAnalysis]);
+
+  const restorePlatformState = useCallback((viewId: string) => {
+    const snap = platformSnapshots.current[viewId];
+    if (snap) {
+      setSelectedAccountId(snap.selectedAccountId);
+      setTheme(snap.theme);
+      setHashtags(snap.hashtags);
+      setImageCount(snap.imageCount);
+      setTextOnly(snap.textOnly);
+      setImageStyle(snap.imageStyle);
+      setOverlayTextTop(snap.overlayTextTop);
+      setOverlayTextMiddle(snap.overlayTextMiddle);
+      setOverlayTextBottom(snap.overlayTextBottom);
+      setReferenceImage(snap.referenceImage);
+      setGeneratedCaption(snap.generatedCaption);
+      setGeneratedImage(snap.generatedImage);
+      setGeneratedImages(snap.generatedImages);
+      setGeneratedImageUrls(snap.generatedImageUrls);
+      setSelectedImageIndex(snap.selectedImageIndex);
+      setGeneratedPostId(snap.generatedPostId);
+      setVideoMode(snap.videoMode);
+      setVideoModel(snap.videoModel);
+      setVideoSize(snap.videoSize);
+      setVideoDuration(snap.videoDuration);
+      setGeneratedVideoUrl(snap.generatedVideoUrl);
+      setReferenceVideo(snap.referenceVideo);
+      setReferenceVideoMime(snap.referenceVideoMime);
+      setVideoAnalysis(snap.videoAnalysis);
+    } else {
+      // スナップショットがなければ初期状態にリセット
+      setTheme("");
+      setHashtags("");
+      setImageCount(1);
+      setTextOnly(false);
+      setImageStyle("natural");
+      setOverlayTextTop("");
+      setOverlayTextMiddle("");
+      setOverlayTextBottom("");
+      setReferenceImage(null);
+      setGeneratedCaption("");
+      setGeneratedImage(null);
+      setGeneratedImages([]);
+      setGeneratedImageUrls([]);
+      setSelectedImageIndex(0);
+      setGeneratedPostId(null);
+      setVideoMode(false);
+      setVideoModel("sora-2");
+      setVideoSize("720x1280");
+      setVideoDuration(8);
+      setGeneratedVideoUrl(null);
+      setReferenceVideo(null);
+      setReferenceVideoMime("video/mp4");
+      setVideoAnalysis(null);
+      // アカウントは自動選択に任せる（呼び出し元で処理）
+    }
+  }, []);
 
   // Auto-post settings
   const [autoPostEnabled, setAutoPostEnabled] = useState(false);
@@ -1712,12 +1816,24 @@ export default function Dashboard() {
               key={item.id}
               style={s.navItem(view === item.id)}
               onClick={() => {
+                // 現在のプラットフォーム状態を保存
+                savePlatformState(view);
+                // 新しいビューに切り替え
                 setView(item.id);
-                const platformMap: Record<string, string> = { instagram: "instagram", tiktok: "tiktok", x: "twitter" };
-                const pf = platformMap[item.id];
-                if (pf) {
-                  const first = accounts.find((a) => a.platform === pf);
-                  if (first) setSelectedAccountId(first.id);
+                // プラットフォーム別の状態を復元
+                const platformViews = ["instagram", "tiktok", "x", "linkedin", "create"];
+                if (platformViews.includes(item.id)) {
+                  restorePlatformState(item.id);
+                  // スナップショットにアカウントがなければ自動選択
+                  const snap = platformSnapshots.current[item.id];
+                  if (!snap || !snap.selectedAccountId) {
+                    const platformMap: Record<string, string> = { instagram: "instagram", tiktok: "tiktok", x: "twitter" };
+                    const pf = platformMap[item.id];
+                    if (pf) {
+                      const first = accounts.find((a) => a.platform === pf);
+                      if (first) setSelectedAccountId(first.id);
+                    }
+                  }
                 }
               }}
               onMouseEnter={(e) => {
