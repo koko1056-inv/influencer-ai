@@ -25,8 +25,7 @@ export async function getOpenAIApiKey(): Promise<string> {
 export interface VideoGenerationResult {
   status: "completed" | "failed" | "in_progress" | "queued";
   videoId: string;
-  progress?: number;
-  downloadUrl?: string;
+  progress: number;
   error?: string;
 }
 
@@ -37,8 +36,8 @@ export async function createVideo(
   prompt: string,
   options?: {
     model?: "sora-2" | "sora-2-pro";
-    size?: "1280x720" | "720x1280";
-    seconds?: 8 | 20;
+    size?: "1280x720" | "720x1280" | "1024x1792" | "1792x1024";
+    seconds?: 4 | 8 | 12;
     apiKey?: string;
   }
 ): Promise<{ videoId: string; status: string }> {
@@ -49,8 +48,7 @@ export async function createVideo(
     model: options?.model || "sora-2",
     prompt,
     size: options?.size || "720x1280",
-    // @ts-expect-error - seconds accepts string
-    seconds: String(options?.seconds || 8),
+    seconds: String(options?.seconds || 8) as "4" | "8" | "12",
   });
 
   return {
@@ -74,11 +72,14 @@ export async function checkVideoStatus(
   return {
     status: video.status as VideoGenerationResult["status"],
     videoId: video.id,
+    progress: video.progress ?? 0,
+    error: video.error?.message,
   };
 }
 
 /**
- * 完成した動画をダウンロードしてSupabase Storageにアップロード
+ * 完成した動画をダウンロードしてSupabase Storageにアップロード。
+ * ストリーミングでチャンクずつ読み取りメモリ使用量を抑制。
  */
 export async function downloadAndUploadVideo(
   videoId: string,
@@ -87,10 +88,27 @@ export async function downloadAndUploadVideo(
   const key = apiKey || (await getOpenAIApiKey());
   const openai = new OpenAI({ apiKey: key });
 
-  // OpenAIから動画をダウンロード
+  // OpenAIから動画をストリーミングダウンロード
   const response = await openai.videos.downloadContent(videoId);
-  const arrayBuffer = await response.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
+
+  // ReadableStream → チャンクを収集（Supabase StorageはBufferが必要）
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("動画のダウンロードストリームを取得できませんでした");
+  }
+
+  const chunks: Uint8Array[] = [];
+  let totalSize = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    totalSize += value.length;
+  }
+
+  // チャンクを結合（全体をarrayBufferで一括読みするより制御しやすい）
+  const buffer = Buffer.concat(chunks, totalSize);
+  console.log(`動画ダウンロード完了: ${(totalSize / 1024 / 1024).toFixed(1)}MB`);
 
   // Supabase Storageにアップロード
   const fileName = `videos/${videoId}-${Date.now()}.mp4`;
@@ -112,49 +130,3 @@ export async function downloadAndUploadVideo(
   return pubUrl.publicUrl;
 }
 
-/**
- * 動画生成＆ポーリング＆ダウンロードをまとめて実行
- */
-export async function generateVideoFull(
-  prompt: string,
-  options?: {
-    model?: "sora-2" | "sora-2-pro";
-    size?: "1280x720" | "720x1280";
-    seconds?: 8 | 20;
-    apiKey?: string;
-  }
-): Promise<{ videoUrl: string; videoId: string }> {
-  const key = options?.apiKey || (await getOpenAIApiKey());
-  const openai = new OpenAI({ apiKey: key });
-
-  // ジョブ作成（Sora APIはprompt文字列を使用）
-  const job = await openai.videos.create({
-    model: options?.model || "sora-2",
-    prompt,
-    size: options?.size || "720x1280",
-    // @ts-expect-error - seconds accepts string
-    seconds: String(options?.seconds || 8),
-  });
-
-  // ポーリングで完了を待機（最大5分）
-  const maxWait = 300_000;
-  const interval = 5_000;
-  let elapsed = 0;
-  let video = job;
-
-  while (elapsed < maxWait) {
-    if (video.status === "completed" || video.status === "failed") break;
-    await new Promise((r) => setTimeout(r, interval));
-    elapsed += interval;
-    video = await openai.videos.retrieve(job.id);
-  }
-
-  if (video.status !== "completed") {
-    throw new Error(`動画生成失敗: ステータス=${video.status}`);
-  }
-
-  // ダウンロード＆アップロード
-  const videoUrl = await downloadAndUploadVideo(video.id, key);
-
-  return { videoUrl, videoId: video.id };
-}

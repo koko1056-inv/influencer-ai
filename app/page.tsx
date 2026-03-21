@@ -612,7 +612,7 @@ export default function Dashboard() {
   const [videoMode, setVideoMode] = useState(false);
   const [videoModel, setVideoModel] = useState<"sora-2" | "sora-2-pro">("sora-2");
   const [videoSize, setVideoSize] = useState("720x1280");
-  const [videoDuration, setVideoDuration] = useState<8 | 20>(8);
+  const [videoDuration, setVideoDuration] = useState<4 | 8 | 12>(8);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const [videoGenerating, setVideoGenerating] = useState(false);
   const [videoProgress, setVideoProgress] = useState("");
@@ -959,19 +959,24 @@ export default function Dashboard() {
         const min = Math.floor(elapsed / 60);
         const sec = elapsed % 60;
         const timeStr = min > 0 ? `${min}分${sec > 0 ? sec + "秒" : ""}` : `${sec}秒`;
-        if (elapsed >= 600) {
-          setVideoProgress(`Sora 2で動画生成中...（${timeStr}経過）⚠️ サーバー混雑の可能性`);
-        } else if (elapsed >= 300) {
-          setVideoProgress(`Sora 2で動画生成中...（${timeStr}経過）通常より時間がかかっています`);
-        } else {
-          setVideoProgress(`Sora 2で動画生成中...（${timeStr}経過）`);
-        }
         try {
           const status = await api<{
             status: string;
+            progress: number;
             video_url: string | null;
             error?: string;
           }>(`/api/video-status?video_id=${data.video_id}`);
+
+          // プログレス%を表示（APIから取得）
+          const pct = status.progress ?? 0;
+          const pctStr = pct > 0 ? ` ${Math.round(pct)}%` : "";
+          if (elapsed >= 600) {
+            setVideoProgress(`Sora 2で動画生成中...${pctStr}（${timeStr}経過）サーバー混雑の可能性`);
+          } else if (elapsed >= 300) {
+            setVideoProgress(`Sora 2で動画生成中...${pctStr}（${timeStr}経過）通常より時間がかかっています`);
+          } else {
+            setVideoProgress(`Sora 2で動画生成中...${pctStr}（${timeStr}経過）`);
+          }
 
           if (status.status === "completed") {
             videoCompleted = true;
@@ -985,6 +990,7 @@ export default function Dashboard() {
             throw pollErr;
           }
           // ネットワークエラーなどは無視してリトライ
+          setVideoProgress(`Sora 2で動画生成中...（${timeStr}経過）`);
         }
       }
 
@@ -2059,9 +2065,10 @@ export default function Dashboard() {
                       </div>
                       <div style={s.formGroup}>
                         <label style={s.label}>長さ</label>
-                        <select style={s.select as React.CSSProperties} value={videoDuration} onChange={(e) => setVideoDuration(Number(e.target.value) as 8 | 20)}>
+                        <select style={s.select as React.CSSProperties} value={videoDuration} onChange={(e) => setVideoDuration(Number(e.target.value) as 4 | 8 | 12)}>
+                          <option value={4}>4秒</option>
                           <option value={8}>8秒</option>
-                          <option value={20}>20秒</option>
+                          <option value={12}>12秒</option>
                         </select>
                       </div>
                     </div>

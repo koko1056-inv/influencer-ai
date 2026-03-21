@@ -23,7 +23,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       status: result.status,
+      progress: result.progress,
       video_url: null,
+      error: result.error || null,
     });
   } catch (e: any) {
     console.error("動画ステータス確認エラー:", e);
