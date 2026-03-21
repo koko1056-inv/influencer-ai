@@ -211,7 +211,8 @@ export async function generateImage(
   imagePrompt: string,
   apiKey?: string,
   referenceImageUrl?: string | null,
-  imageStyle?: string
+  imageStyle?: string,
+  overlayText?: string | null
 ): Promise<string | null> {
   const key = apiKey || (await getGeminiApiKey());
   const genAI = createGenAI(key);
@@ -233,6 +234,18 @@ export async function generateImage(
   };
   const styleInstruction = stylePrompts[imageStyle || "natural"] || stylePrompts.natural;
 
+  // テキストオーバーレイ指示
+  const textOverlayStyles = ["magazine", "text-overlay", "infographic", "meme"];
+  const wantsTextOverlay = textOverlayStyles.includes(imageStyle || "natural") || !!overlayText;
+  let overlayInstruction = "";
+  if (wantsTextOverlay) {
+    if (overlayText) {
+      overlayInstruction = `\n\nTEXT OVERLAY: Render the following text prominently on the image in stylish, readable typography: "${overlayText}". The text must be clearly legible, well-positioned, and integrated into the design. Use Japanese text.`;
+    } else {
+      overlayInstruction = `\n\nTEXT OVERLAY: Generate and render appropriate catchy Japanese text/headline on the image that fits the content and style. The text should be attention-grabbing, concise (1-2 lines), and well-integrated into the design with clear typography.`;
+    }
+  }
+
   let fullPrompt: string;
   if (hasAvatar && hasReference) {
     fullPrompt = `TASK: Generate a social media photo of this influencer using/holding/featuring the product shown in the reference image.
@@ -245,13 +258,13 @@ INSTRUCTIONS:
 - Make it look like a genuine influencer Instagram post — not an advertisement.
 - The product must be clearly visible and recognizable in the image.
 
-VISUAL STYLE: ${styleInstruction}`;
+VISUAL STYLE: ${styleInstruction}${overlayInstruction}`;
   } else if (hasAvatar) {
     fullPrompt = `Using the reference photo of this person as a visual guide, generate a new social media post image: ${imagePrompt}.
 The generated image should feature a person who looks similar to the reference photo (same general appearance, style, and vibe).
 IMPORTANT: Create a NEW scene based on the prompt, but keep the person's appearance consistent with the reference.
 
-VISUAL STYLE: ${styleInstruction}`;
+VISUAL STYLE: ${styleInstruction}${overlayInstruction}`;
   } else if (hasReference) {
     fullPrompt = `TASK: Generate a social media photo featuring the product shown in the reference image.
 
@@ -261,12 +274,12 @@ INSTRUCTIONS:
 - The product must be clearly visible and recognizable.
 - Make it look like a genuine influencer post — natural, not an advertisement.
 
-VISUAL STYLE: ${styleInstruction}`;
+VISUAL STYLE: ${styleInstruction}${overlayInstruction}`;
   } else {
     fullPrompt = `Generate a high-quality, visually appealing social media image: ${imagePrompt}.
 The image should be suitable for an influencer's social media post.
 
-VISUAL STYLE: ${styleInstruction}`;
+VISUAL STYLE: ${styleInstruction}${overlayInstruction}`;
   }
 
   try {
@@ -329,7 +342,8 @@ export async function generateMultipleImages(
   count: number = 1,
   apiKey?: string,
   referenceImageUrl?: string | null,
-  imageStyle?: string
+  imageStyle?: string,
+  overlayText?: string | null
 ): Promise<string[]> {
   const safeCount = Math.min(Math.max(count, 1), 5);
   const results: string[] = [];
@@ -345,7 +359,8 @@ export async function generateMultipleImages(
         imagePrompt + variationSuffix,
         apiKey,
         referenceImageUrl,
-        imageStyle
+        imageStyle,
+        overlayText
       );
       if (result) {
         results.push(result);

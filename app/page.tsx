@@ -668,6 +668,7 @@ export default function Dashboard() {
   const [imageCount, setImageCount] = useState(1);
   const [textOnly, setTextOnly] = useState(false);
   const [imageStyle, setImageStyle] = useState("natural");
+  const [overlayText, setOverlayText] = useState("");
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
   const [generatedCaption, setGeneratedCaption] = useState("");
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
@@ -868,6 +869,7 @@ export default function Dashboard() {
           theme,
           image_count: textOnly ? 0 : imageCount,
           image_style: textOnly ? undefined : imageStyle,
+          overlay_text: textOnly ? undefined : overlayText.trim() || undefined,
           reference_image: textOnly ? null : referenceImage,
         }),
       });
@@ -2501,6 +2503,19 @@ export default function Dashboard() {
                       </button>
                     ))}
                   </div>
+                </div>
+                <div style={s.formGroup}>
+                  <label style={s.label}>テキストオーバーレイ（オプション）</label>
+                  <input
+                    type="text"
+                    style={s.input as React.CSSProperties}
+                    placeholder="例: 今日のおすすめ3選、知らないと損する裏ワザ..."
+                    value={overlayText}
+                    onChange={(e) => setOverlayText(e.target.value)}
+                  />
+                  <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
+                    画像に表示するテキスト。空欄ならAIがスタイルに合ったテキストを自動生成します
+                  </p>
                 </div>
                 </>)}
                   </>
