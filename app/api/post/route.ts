@@ -4,6 +4,9 @@ import { generatePostText } from "@/lib/gemini";
 import { createPost, createImagePost } from "@/lib/buffer";
 import { uploadImageFromBase64 } from "@/lib/storage";
 
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   try {
     const { post_id, account_id, text, theme, scheduled_at, image_urls } =

@@ -3,6 +3,9 @@ import { generateLinkedInPost, generateImage, getGeminiApiKey } from "@/lib/gemi
 import { uploadImageFromBase64 } from "@/lib/storage";
 import { supabase } from "@/lib/supabase";
 
+export const dynamic = "force-dynamic";
+export const maxDuration = 120;
+
 /** 過去投稿の分析コンテキストを取得 */
 async function getPastPostsContext(): Promise<string> {
   // トップパフォーマー（エンゲージメントデータあり）

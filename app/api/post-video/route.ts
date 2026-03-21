@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { createVideoPost } from "@/lib/buffer";
 
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   try {
     const { post_id, video_url } = await req.json();

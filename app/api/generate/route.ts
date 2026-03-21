@@ -3,6 +3,9 @@ import { supabase } from "@/lib/supabase";
 import { generatePostText, generateMultipleImages, getGeminiApiKey } from "@/lib/gemini";
 import { uploadImageFromBase64 } from "@/lib/storage";
 
+export const dynamic = "force-dynamic";
+export const maxDuration = 300;
+
 export async function POST(req: NextRequest) {
   try {
     const { account_id, theme, image_count, image_style, overlay_text, reference_image } = await req.json();
