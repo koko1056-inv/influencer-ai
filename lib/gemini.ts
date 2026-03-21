@@ -16,9 +16,15 @@ export interface AccountForGeneration {
   reference_posts?: string;
 }
 
+export interface CarouselSlide {
+  slide_text: string;
+  slide_image_prompt: string;
+}
+
 export interface GeneratedContent {
   post_text: string;
   image_prompt: string;
+  carousel_slides?: CarouselSlide[];
 }
 
 /** Supabase app_settings → env変数 の順でAPIキーを取得 */
@@ -112,7 +118,17 @@ ${account.target_audience}${extraPersona}
 - ハッシュタグを2〜5個含めてください
 - 絵文字を適度に使用してください
 - 宣伝っぽくならず、自然な語りにしてください
-- 毎回新鮮で独立した投稿を生成してください`;
+- 毎回新鮮で独立した投稿を生成してください
+
+【最重要：フック文（1行目）】
+投稿の1行目は「スクロールを止める」フック文にしてください。以下のパターンから最適なものを選んで書き出しに使ってください：
+- 問いかけ型：「え、まだ〇〇してないの？」「〇〇って知ってる？」
+- 衝撃型：「正直、これはヤバい」「人生変わった」
+- 共感型：「〇〇あるある、これわかる人いる？」
+- 数字型：「〇〇を3年続けた結果…」「たった5分で〇〇」
+- 秘密型：「誰にも教えたくなかった〇〇」「知らないと損する〇〇」
+- 否定型：「〇〇はもう古い」「みんなやってるけど実は間違ってる〇〇」
+1行目で必ずフォロワーの感情を動かし、続きを読みたくさせてください。平凡な書き出し（「今日は〜」「最近〜」）は絶対に避けてください。`;
 
   const hasAvatar = !!account.avatar_url;
 
@@ -154,7 +170,16 @@ ${account.target_audience}${extraPersona}
 他のテーマや過去の内容を絶対に混ぜないでください。
 
 以下のJSON形式で出力してください（他の文字は不要）:
-{"post_text": "投稿テキスト", "image_prompt": "英語の画像生成プロンプト"}`;
+{"post_text": "投稿テキスト", "image_prompt": "英語の画像生成プロンプト", "carousel_slides": [{"slide_text": "スライド1のテキスト", "slide_image_prompt": "スライド1の画像プロンプト"}, ...]}`
+
++ `\n\n【カルーセル構成（重要）】
+carousel_slidesには3〜5枚のスライド構成を生成してください。各スライドは以下の構成に従ってください：
+- スライド1（フック）：「続きが気になる！」と思わせるインパクトある問いかけや主張。大きなテキストで表示される前提
+- スライド2（問題提起/共感）：ターゲットが「わかる！」と共感する悩みや状況
+- スライド3-4（解決策/本題）：具体的な情報、ランキング、ステップ、ノウハウ
+- 最終スライド（CTA）：「保存して見返してね」「フォローで毎日お届け」のような行動喚起
+各slide_textは画像内に大きく表示される前提で、1スライド15文字以内の短いフレーズにしてください。
+各slide_image_promptは英語で、そのスライドの内容に合った背景画像の指示を書いてください。`;
 
   // 画像入力がある場合はマルチモーダル対応モデルを使用
   const hasMultimodal = hasAvatar || hasReference;
@@ -354,24 +379,32 @@ export async function generateMultipleImages(
   apiKey?: string,
   referenceImageUrl?: string | null,
   imageStyle?: string,
-  overlayText?: { top?: string; middle?: string; bottom?: string } | null
+  overlayText?: { top?: string; middle?: string; bottom?: string } | null,
+  carouselSlides?: CarouselSlide[]
 ): Promise<string[]> {
   const safeCount = Math.min(Math.max(count, 1), 5);
   const results: string[] = [];
 
   for (let i = 0; i < safeCount; i++) {
     try {
-      // バリエーションプロンプトを追加（2枚目以降）
-      const variationSuffix = i > 0
+      // カルーセル構成がある場合、各スライドの情報を使う
+      const slide = carouselSlides?.[i];
+      const slidePrompt = slide ? slide.slide_image_prompt : imagePrompt;
+      const slideOverlay = slide
+        ? { middle: slide.slide_text }  // スライドテキストを画像中央に表示
+        : overlayText;
+
+      // バリエーションプロンプトを追加（2枚目以降、カルーセルでない場合）
+      const variationSuffix = !slide && i > 0
         ? ` (Variation ${i + 1}: Use a completely different composition, camera angle, pose, and background setting while keeping the same person and product.)`
         : "";
       const result = await generateImage(
         account,
-        imagePrompt + variationSuffix,
+        slidePrompt + variationSuffix,
         apiKey,
         referenceImageUrl,
         imageStyle,
-        overlayText
+        slideOverlay
       );
       if (result) {
         results.push(result);

@@ -65,6 +65,10 @@ export async function POST(req: NextRequest) {
 
     if (requestedCount > 0) {
       try {
+        // カルーセル構成がある場合、各スライドの画像プロンプトとテキストを使用
+        const slides = content.carousel_slides || [];
+        const useCarousel = requestedCount >= 2 && slides.length >= requestedCount;
+
         const generatedImages = await generateMultipleImages(
           accountInfo,
           content.image_prompt,
@@ -72,7 +76,8 @@ export async function POST(req: NextRequest) {
           apiKey,
           reference_image || null,
           image_style || "natural",
-          overlay_text || null
+          overlay_text || null,
+          useCarousel ? slides : undefined
         );
 
         // 各画像をSupabase Storageにアップロード
@@ -131,6 +136,7 @@ export async function POST(req: NextRequest) {
       images: imageResults,
       image_urls: imageUrls,
       image_count: imageResults.length,
+      carousel_slides: content.carousel_slides || [],
       post_id: post?.id || null,
     });
   } catch (e: any) {

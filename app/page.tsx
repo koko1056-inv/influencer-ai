@@ -680,6 +680,12 @@ export default function Dashboard() {
   const [generatedPostId, setGeneratedPostId] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [posting, setPosting] = useState(false);
+  // A/Bテスト
+  const [abTestEnabled, setAbTestEnabled] = useState(false);
+  const [abCaptions, setAbCaptions] = useState<string[]>([]);
+  const [abSelectedIndex, setAbSelectedIndex] = useState(0);
+  // カルーセルスライド
+  const [carouselSlides, setCarouselSlides] = useState<{ slide_text: string; slide_image_prompt: string }[]>([]);
 
   // Video generation state
   const [videoMode, setVideoMode] = useState(false);
@@ -720,6 +726,10 @@ export default function Dashboard() {
     referenceVideo: string | null;
     referenceVideoMime: string;
     videoAnalysis: any | null;
+    abTestEnabled: boolean;
+    abCaptions: string[];
+    abSelectedIndex: number;
+    carouselSlides: { slide_text: string; slide_image_prompt: string }[];
   }
 
   const platformSnapshots = useRef<Record<string, PlatformSnapshot>>({});
@@ -734,13 +744,15 @@ export default function Dashboard() {
       selectedImageIndex, generatedPostId,
       videoMode, videoModel, videoSize, videoDuration, generatedVideoUrl,
       referenceVideo, referenceVideoMime, videoAnalysis,
+      abTestEnabled, abCaptions, abSelectedIndex, carouselSlides,
     };
   }, [selectedAccountId, theme, hashtags, imageCount, textOnly, imageStyle,
     overlayTextTop, overlayTextMiddle, overlayTextBottom, referenceImage,
     generatedCaption, generatedImage, generatedImages, generatedImageUrls,
     selectedImageIndex, generatedPostId,
     videoMode, videoModel, videoSize, videoDuration, generatedVideoUrl,
-    referenceVideo, referenceVideoMime, videoAnalysis]);
+    referenceVideo, referenceVideoMime, videoAnalysis,
+    abTestEnabled, abCaptions, abSelectedIndex, carouselSlides]);
 
   const restorePlatformState = useCallback((viewId: string) => {
     const snap = platformSnapshots.current[viewId];
@@ -769,6 +781,10 @@ export default function Dashboard() {
       setReferenceVideo(snap.referenceVideo);
       setReferenceVideoMime(snap.referenceVideoMime);
       setVideoAnalysis(snap.videoAnalysis);
+      setAbTestEnabled(snap.abTestEnabled);
+      setAbCaptions(snap.abCaptions);
+      setAbSelectedIndex(snap.abSelectedIndex);
+      setCarouselSlides(snap.carouselSlides);
     } else {
       // スナップショットがなければ初期状態にリセット
       setTheme("");
@@ -794,6 +810,10 @@ export default function Dashboard() {
       setReferenceVideo(null);
       setReferenceVideoMime("video/mp4");
       setVideoAnalysis(null);
+      setAbTestEnabled(false);
+      setAbCaptions([]);
+      setAbSelectedIndex(0);
+      setCarouselSlides([]);
       // アカウントは自動選択に任せる（呼び出し元で処理）
     }
   }, []);
@@ -958,7 +978,22 @@ export default function Dashboard() {
     setGeneratedImageUrls([]);
     setSelectedImageIndex(0);
     setGeneratedPostId(null);
+    setAbCaptions([]);
+    setAbSelectedIndex(0);
+    setCarouselSlides([]);
     try {
+      const reqBody = {
+        account_id: selectedAccountId,
+        theme,
+        image_count: textOnly ? 0 : imageCount,
+        image_style: textOnly ? undefined : imageStyle,
+        overlay_text: textOnly ? undefined : {
+          top: overlayTextTop.trim() || undefined,
+          middle: overlayTextMiddle.trim() || undefined,
+          bottom: overlayTextBottom.trim() || undefined,
+        },
+        reference_image: textOnly ? null : referenceImage,
+      };
       const data = await api<{
         post_text: string;
         image_prompt: string;
@@ -966,22 +1001,12 @@ export default function Dashboard() {
         images: string[];
         image_urls: string[];
         image_count: number;
+        carousel_slides: { slide_text: string; slide_image_prompt: string }[];
         post_id: string;
       }>("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          account_id: selectedAccountId,
-          theme,
-          image_count: textOnly ? 0 : imageCount,
-          image_style: textOnly ? undefined : imageStyle,
-          overlay_text: textOnly ? undefined : {
-            top: overlayTextTop.trim() || undefined,
-            middle: overlayTextMiddle.trim() || undefined,
-            bottom: overlayTextBottom.trim() || undefined,
-          },
-          reference_image: textOnly ? null : referenceImage,
-        }),
+        body: JSON.stringify(reqBody),
       });
       // ハッシュタグが指定されていて生成テキストに含まれていなければ追加
       let caption = data.post_text;
@@ -994,6 +1019,29 @@ export default function Dashboard() {
       setGeneratedImage(data.images?.[0] || data.image_data);
       setSelectedImageIndex(0);
       setGeneratedPostId(data.post_id);
+      setCarouselSlides(data.carousel_slides || []);
+
+      // A/Bテスト: 有効なら追加でキャプション2パターン生成
+      if (abTestEnabled) {
+        const captions = [caption];
+        for (let v = 0; v < 2; v++) {
+          try {
+            const alt = await api<{ post_text: string }>("/api/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...reqBody, image_count: 0 }),
+            });
+            let altCaption = alt.post_text;
+            if (hashtags.trim() && !altCaption.includes(hashtags.trim())) {
+              altCaption = altCaption.trimEnd() + "\n\n" + hashtags.trim();
+            }
+            captions.push(altCaption);
+          } catch { /* skip */ }
+        }
+        setAbCaptions(captions);
+        showToast(`${captions.length}パターンのキャプションを生成しました`, "success");
+      }
+
       if (data.image_count > 0) {
         showToast(`${data.image_count}枚の画像を生成しました`, "success");
       }
@@ -2685,6 +2733,18 @@ export default function Dashboard() {
                       : <>{Icon.sparkle} {isTT ? "TikTok動画を生成" : isIG ? "リール動画を生成" : "動画を生成"}</>}
                   </button>
                 ) : (
+                <>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: abTestEnabled ? "#a5b4fc" : "#71717a" }}>
+                    <input
+                      type="checkbox"
+                      checked={abTestEnabled}
+                      onChange={(e) => setAbTestEnabled(e.target.checked)}
+                      style={{ accentColor: "#6366f1" }}
+                    />
+                    A/Bテスト（3パターン生成）
+                  </label>
+                </div>
                 <button
                   style={{
                     ...s.btnPrimary,
@@ -2706,6 +2766,7 @@ export default function Dashboard() {
                     ? `Instagram投稿を生成（${imageCount}枚）`
                     : (textOnly ? "AIで生成（テキストのみ）" : `AIで生成（${imageCount}枚）`)}
                 </button>
+                </>
                 )}
               </div>
 
@@ -2821,8 +2882,45 @@ export default function Dashboard() {
                         color: "#d4d4d8",
                       }}
                     >
-                      {generatedCaption}
+                      {abCaptions.length > 1 ? abCaptions[abSelectedIndex] : generatedCaption}
                     </div>
+                    {abCaptions.length > 1 && (
+                      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                        {abCaptions.map((_, idx) => (
+                          <button
+                            key={idx}
+                            style={{
+                              flex: 1,
+                              padding: "6px 0",
+                              borderRadius: 6,
+                              border: abSelectedIndex === idx ? "2px solid #6366f1" : "1px solid #2a2a3a",
+                              background: abSelectedIndex === idx ? "#6366f120" : "#0c0c12",
+                              color: abSelectedIndex === idx ? "#a5b4fc" : "#71717a",
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                            }}
+                            onClick={() => {
+                              setAbSelectedIndex(idx);
+                              setGeneratedCaption(abCaptions[idx]);
+                            }}
+                          >
+                            {idx === 0 ? "A" : idx === 1 ? "B" : "C"}パターン
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {carouselSlides.length > 0 && (
+                      <div style={{ marginTop: 12, padding: 12, background: "#1a1a2e", borderRadius: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "#6366f1", marginBottom: 8 }}>カルーセル構成</div>
+                        {carouselSlides.map((slide, idx) => (
+                          <div key={idx} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+                            <span style={{ fontSize: 11, color: "#6366f1", fontWeight: 700, minWidth: 20 }}>{idx + 1}</span>
+                            <span style={{ fontSize: 13, color: "#d4d4d8" }}>{slide.slide_text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
                       <button
                         style={{
@@ -2846,6 +2944,66 @@ export default function Dashboard() {
                     </div>
                   </>
                 )}
+              </div>
+
+              {/* 投稿タイミング推奨 */}
+              <div style={{ ...s.card, gridColumn: "1 / -1" }}>
+                <h3 style={s.cardHeader}>投稿タイミング推奨</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div style={{ padding: 12, background: "#14141e", borderRadius: 8 }}>
+                    <div style={{ fontSize: 12, color: "#6366f1", fontWeight: 600, marginBottom: 8 }}>
+                      {isIG ? "Instagram" : isTT ? "TikTok" : isX ? "X" : "SNS"} ベストタイム
+                    </div>
+                    {(isIG ? [
+                      { day: "平日", times: "7:00-9:00, 12:00-13:00, 19:00-21:00", best: "19:00-21:00" },
+                      { day: "土日", times: "10:00-12:00, 14:00-16:00, 20:00-22:00", best: "10:00-12:00" },
+                    ] : isTT ? [
+                      { day: "平日", times: "6:00-8:00, 12:00-13:00, 19:00-23:00", best: "19:00-22:00" },
+                      { day: "土日", times: "9:00-12:00, 15:00-17:00, 20:00-23:00", best: "20:00-23:00" },
+                    ] : isX ? [
+                      { day: "平日", times: "7:00-9:00, 12:00-13:00, 17:00-19:00", best: "12:00-13:00" },
+                      { day: "土日", times: "8:00-10:00, 14:00-16:00, 20:00-22:00", best: "14:00-16:00" },
+                    ] : [
+                      { day: "平日", times: "7:00-9:00, 12:00-13:00, 19:00-21:00", best: "19:00-21:00" },
+                      { day: "土日", times: "10:00-12:00, 14:00-16:00, 20:00-22:00", best: "10:00-12:00" },
+                    ]).map((row) => (
+                      <div key={row.day} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <span style={{ fontSize: 13, color: "#a1a1aa" }}>{row.day}</span>
+                        <span style={{ fontSize: 12, color: "#d4d4d8" }}>{row.times}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ padding: 12, background: "#14141e", borderRadius: 8 }}>
+                    <div style={{ fontSize: 12, color: "#10b981", fontWeight: 600, marginBottom: 8 }}>
+                      今すぐ投稿？
+                    </div>
+                    {(() => {
+                      const now = new Date();
+                      const hour = now.getHours();
+                      const day = now.getDay();
+                      const isWeekend = day === 0 || day === 6;
+                      const goodTimes = isIG
+                        ? (isWeekend ? [10,11,14,15,20,21] : [7,8,12,19,20])
+                        : isTT
+                        ? (isWeekend ? [9,10,11,15,16,20,21,22] : [6,7,12,19,20,21,22])
+                        : (isWeekend ? [8,9,14,15,20,21] : [7,8,12,17,18]);
+                      const isGoodTime = goodTimes.includes(hour);
+                      return (
+                        <div>
+                          <div style={{ fontSize: 24, marginBottom: 4 }}>{isGoodTime ? "🟢" : "🟡"}</div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: isGoodTime ? "#10b981" : "#f59e0b" }}>
+                            {isGoodTime ? "今が投稿チャンス！" : "もう少し待つのがベター"}
+                          </div>
+                          <div style={{ fontSize: 12, color: "#71717a", marginTop: 4 }}>
+                            {isGoodTime
+                              ? "現在はエンゲージメントが高い時間帯です"
+                              : `次のゴールデンタイム: ${goodTimes.find(t => t > hour) || goodTimes[0]}:00`}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
               </div>
             </div>
           </>
