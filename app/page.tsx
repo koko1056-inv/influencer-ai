@@ -689,9 +689,9 @@ export default function Dashboard() {
 
   // Video generation state
   const [videoMode, setVideoMode] = useState(false);
-  const [videoModel, setVideoModel] = useState<"sora-2" | "sora-2-pro">("sora-2");
-  const [videoSize, setVideoSize] = useState("720x1280");
-  const [videoDuration, setVideoDuration] = useState<4 | 8 | 12>(8);
+  const [videoModel, setVideoModel] = useState("KLING_V3_0_STA");
+  const [videoAspectRatio, setVideoAspectRatio] = useState("9:16");
+  const [videoDuration, setVideoDuration] = useState(5);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const [videoGenerating, setVideoGenerating] = useState(false);
   const [videoProgress, setVideoProgress] = useState("");
@@ -719,9 +719,9 @@ export default function Dashboard() {
     selectedImageIndex: number;
     generatedPostId: string | null;
     videoMode: boolean;
-    videoModel: "sora-2" | "sora-2-pro";
-    videoSize: string;
-    videoDuration: 4 | 8 | 12;
+    videoModel: string;
+    videoAspectRatio: string;
+    videoDuration: number;
     generatedVideoUrl: string | null;
     referenceVideo: string | null;
     referenceVideoMime: string;
@@ -742,7 +742,7 @@ export default function Dashboard() {
       overlayTextTop, overlayTextMiddle, overlayTextBottom, referenceImage,
       generatedCaption, generatedImage, generatedImages, generatedImageUrls,
       selectedImageIndex, generatedPostId,
-      videoMode, videoModel, videoSize, videoDuration, generatedVideoUrl,
+      videoMode, videoModel, videoAspectRatio, videoDuration, generatedVideoUrl,
       referenceVideo, referenceVideoMime, videoAnalysis,
       abTestEnabled, abCaptions, abSelectedIndex, carouselSlides,
     };
@@ -750,7 +750,7 @@ export default function Dashboard() {
     overlayTextTop, overlayTextMiddle, overlayTextBottom, referenceImage,
     generatedCaption, generatedImage, generatedImages, generatedImageUrls,
     selectedImageIndex, generatedPostId,
-    videoMode, videoModel, videoSize, videoDuration, generatedVideoUrl,
+    videoMode, videoModel, videoAspectRatio, videoDuration, generatedVideoUrl,
     referenceVideo, referenceVideoMime, videoAnalysis,
     abTestEnabled, abCaptions, abSelectedIndex, carouselSlides]);
 
@@ -775,7 +775,7 @@ export default function Dashboard() {
       setGeneratedPostId(snap.generatedPostId);
       setVideoMode(snap.videoMode);
       setVideoModel(snap.videoModel);
-      setVideoSize(snap.videoSize);
+      setVideoAspectRatio(snap.videoAspectRatio);
       setVideoDuration(snap.videoDuration);
       setGeneratedVideoUrl(snap.generatedVideoUrl);
       setReferenceVideo(snap.referenceVideo);
@@ -803,9 +803,9 @@ export default function Dashboard() {
       setSelectedImageIndex(0);
       setGeneratedPostId(null);
       setVideoMode(false);
-      setVideoModel("sora-2");
-      setVideoSize("720x1280");
-      setVideoDuration(8);
+      setVideoModel("KLING_V3_0_STA");
+      setVideoAspectRatio("9:16");
+      setVideoDuration(5);
       setGeneratedVideoUrl(null);
       setReferenceVideo(null);
       setReferenceVideoMime("video/mp4");
@@ -1153,10 +1153,9 @@ export default function Dashboard() {
     setGeneratedCaption("");
     setGeneratedPostId(null);
     try {
-      // Step 1: Geminiでテキスト生成 + Soraジョブ作成（すぐ返る）
+      // Step 1: Geminiでテキスト生成 + WeryAIジョブ作成（すぐ返る）
       const data = await api<{
-        video_id: string;
-        video_status: string;
+        task_id: string;
         post_id: string;
         post_text: string;
       }>("/api/generate-video", {
@@ -1166,8 +1165,8 @@ export default function Dashboard() {
           account_id: selectedAccountId,
           theme,
           model: videoModel,
-          size: videoSize,
-          seconds: videoDuration,
+          aspect_ratio: videoAspectRatio,
+          duration: videoDuration,
           reference_image: referenceImage,
           video_analysis: videoAnalysis,
         }),
@@ -1181,9 +1180,10 @@ export default function Dashboard() {
       setGeneratedPostId(data.post_id);
 
       // Step 2: ポーリングで動画完了を待つ（最大15分）
-      setVideoProgress("Sora 2で動画生成中...");
+      setVideoProgress("動画生成中...");
       const maxPoll = 180; // 5秒×180 = 15分
       let videoCompleted = false;
+      let completedVideoUrl: string | null = null;
       for (let i = 0; i < maxPoll; i++) {
         await new Promise((r) => setTimeout(r, 5000));
         const elapsed = (i + 1) * 5;
@@ -1193,24 +1193,19 @@ export default function Dashboard() {
         try {
           const status = await api<{
             status: string;
-            progress: number;
             video_url: string | null;
             error?: string;
-          }>(`/api/video-status?video_id=${data.video_id}`);
+          }>(`/api/video-status?task_id=${data.task_id}`);
 
-          // プログレス%を表示（APIから取得）
-          const pct = status.progress ?? 0;
-          const pctStr = pct > 0 ? ` ${Math.round(pct)}%` : "";
           if (elapsed >= 600) {
-            setVideoProgress(`Sora 2で動画生成中...${pctStr}（${timeStr}経過）サーバー混雑の可能性`);
-          } else if (elapsed >= 300) {
-            setVideoProgress(`Sora 2で動画生成中...${pctStr}（${timeStr}経過）通常より時間がかかっています`);
+            setVideoProgress(`動画生成中...（${timeStr}経過）通常より時間がかかっています`);
           } else {
-            setVideoProgress(`Sora 2で動画生成中...${pctStr}（${timeStr}経過）`);
+            setVideoProgress(`動画生成中...（${timeStr}経過）`);
           }
 
-          if (status.status === "completed") {
+          if (status.status === "succeed" && status.video_url) {
             videoCompleted = true;
+            completedVideoUrl = status.video_url;
             break;
           }
           if (status.status === "failed") {
@@ -1220,16 +1215,15 @@ export default function Dashboard() {
           if (pollErr instanceof Error && pollErr.message.includes("失敗")) {
             throw pollErr;
           }
-          // ネットワークエラーなどは無視してリトライ
-          setVideoProgress(`Sora 2で動画生成中...（${timeStr}経過）`);
+          setVideoProgress(`動画生成中...（${timeStr}経過）`);
         }
       }
 
-      if (!videoCompleted) {
-        throw new Error("動画生成がタイムアウトしました（15分）。Sora 2のサーバーが混雑している可能性があります。しばらく待ってからもう一度お試しください。");
+      if (!videoCompleted || !completedVideoUrl) {
+        throw new Error("動画生成がタイムアウトしました（15分）。しばらく待ってからもう一度お試しください。");
       }
 
-      // Step 3: 動画をダウンロード＆Supabaseにアップロード（別エンドポイント、maxDuration=300s）
+      // Step 3: 動画をダウンロード＆Supabaseにアップロード
       setVideoProgress("動画をダウンロード中...");
       const dlResult = await api<{
         status: string;
@@ -1239,7 +1233,7 @@ export default function Dashboard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          video_id: data.video_id,
+          video_url: completedVideoUrl,
           post_id: data.post_id || null,
         }),
       });
@@ -1326,7 +1320,7 @@ export default function Dashboard() {
       const s = data.settings;
       if (s.gemini_api_key && typeof s.gemini_api_key === "string") setSettingsGemini(s.gemini_api_key);
       if (s.buffer_api_key && typeof s.buffer_api_key === "string") setSettingsBuffer(s.buffer_api_key);
-      if (s.openai_api_key && typeof s.openai_api_key === "string") setSettingsOpenAI(s.openai_api_key);
+      if (s.weryai_api_key && typeof s.weryai_api_key === "string") setSettingsOpenAI(s.weryai_api_key);
       // Auto-post settings
       if (s.auto_post_enabled !== undefined) {
         setAutoPostEnabled(s.auto_post_enabled === true || s.auto_post_enabled === "true");
@@ -1372,7 +1366,7 @@ export default function Dashboard() {
         await api("/api/settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ key: "openai_api_key", value: settingsOpenAI }),
+          body: JSON.stringify({ key: "weryai_api_key", value: settingsOpenAI }),
         });
       }
       showToast("設定を保存しました", "success");
@@ -2293,25 +2287,41 @@ export default function Dashboard() {
                   <>
                     <div style={s.formGroup}>
                       <label style={s.label}>動画モデル</label>
-                      <select style={s.select as React.CSSProperties} value={videoModel} onChange={(e) => setVideoModel(e.target.value as "sora-2" | "sora-2-pro")}>
-                        <option value="sora-2">Sora 2（高速）</option>
-                        <option value="sora-2-pro">Sora 2 Pro（高品質）</option>
+                      <select style={s.select as React.CSSProperties} value={videoModel} onChange={(e) => setVideoModel(e.target.value)}>
+                        <optgroup label="高速">
+                          <option value="KLING_V3_0_STA">Kling 3.0 Standard</option>
+                          <option value="WERYAI_VIDEO_1_0">WeryAI Video 1.0</option>
+                          <option value="VEO_3_1_FAST">Veo 3.1 Fast</option>
+                          <option value="HAILUO_2_3_STA">Hailuo 2.3 Standard</option>
+                          <option value="PIKA_2_2">Pika 2.2</option>
+                        </optgroup>
+                        <optgroup label="高品質">
+                          <option value="KLING_V3_0_PRO">Kling 3.0 Pro</option>
+                          <option value="SEEDANCE_2_0">Seedance 2.0</option>
+                          <option value="VEO_3_1">Veo 3.1</option>
+                          <option value="HAILUO_2_3_PRO">Hailuo 2.3 Pro</option>
+                          <option value="WAN_2_6">Wan 2.6</option>
+                          <option value="DOUBAO_1_5_PRO">Seedance 1.5 Pro</option>
+                        </optgroup>
+                        <optgroup label="その他">
+                          <option value="SORA_2">Sora 2</option>
+                        </optgroup>
                       </select>
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                       <div style={s.formGroup}>
-                        <label style={s.label}>サイズ</label>
-                        <select style={s.select as React.CSSProperties} value={videoSize} onChange={(e) => setVideoSize(e.target.value)}>
-                          <option value="720x1280">縦型 720x1280（Reels/TikTok）</option>
-                          <option value="1280x720">横型 1280x720（YouTube）</option>
+                        <label style={s.label}>アスペクト比</label>
+                        <select style={s.select as React.CSSProperties} value={videoAspectRatio} onChange={(e) => setVideoAspectRatio(e.target.value)}>
+                          <option value="9:16">縦型 9:16（Reels/TikTok）</option>
+                          <option value="16:9">横型 16:9（YouTube）</option>
+                          <option value="1:1">正方形 1:1</option>
                         </select>
                       </div>
                       <div style={s.formGroup}>
                         <label style={s.label}>長さ</label>
-                        <select style={s.select as React.CSSProperties} value={videoDuration} onChange={(e) => setVideoDuration(Number(e.target.value) as 4 | 8 | 12)}>
-                          <option value={4}>4秒</option>
-                          <option value={8}>8秒</option>
-                          <option value={12}>12秒</option>
+                        <select style={s.select as React.CSSProperties} value={videoDuration} onChange={(e) => setVideoDuration(Number(e.target.value))}>
+                          <option value={5}>5秒</option>
+                          <option value={10}>10秒</option>
                         </select>
                       </div>
                     </div>
@@ -2493,7 +2503,7 @@ export default function Dashboard() {
                             )}
                           </div>
                           <p style={{ marginTop: 8, fontSize: 11, color: "#52525b" }}>
-                            この分析データがSora 2のプロンプトに自動反映されます
+                            この分析データが動画生成のプロンプトに自動反映されます
                           </p>
                         </div>
                       )}
@@ -4357,7 +4367,7 @@ export default function Dashboard() {
                 </p>
               </div>
               <div style={s.formGroup}>
-                <label style={s.label}>OpenAI API Key (Sora動画生成)</label>
+                <label style={s.label}>WeryAI API Key (動画生成)</label>
                 <input
                   style={s.input}
                   type="password"
@@ -4366,7 +4376,7 @@ export default function Dashboard() {
                   onChange={(e) => setSettingsOpenAI(e.target.value)}
                 />
                 <p style={{ fontSize: 12, color: "#52525b", marginTop: 4 }}>
-                  Sora 2による動画生成に使用
+                  Kling 3.0, Veo 3.1, Seedance 2.0等の動画生成に使用
                 </p>
               </div>
               <div style={s.formGroup}>
@@ -4580,7 +4590,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <div style={{ fontSize: 12, color: "#71717a", marginBottom: 4 }}>動画生成</div>
-                  <div style={{ fontSize: 14, color: "#d4d4d8" }}>Sora 2 (OpenAI)</div>
+                  <div style={{ fontSize: 14, color: "#d4d4d8" }}>WeryAI (Kling, Veo, Seedance等)</div>
                 </div>
               </div>
             </div>

@@ -1,39 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
-import { downloadAndUploadVideo, getOpenAIApiKey } from "@/lib/sora";
+import { downloadAndUploadWeryVideo } from "@/lib/weryai";
 import { supabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300; // 5分 — 20秒動画のダウンロード＆アップロードに十分な時間
+export const maxDuration = 300; // 5分 — 動画のダウンロード＆アップロードに十分な時間
 
 /**
- * 完成した動画をOpenAIからダウンロードしてSupabase Storageにアップロード。
- * video-status で completed を確認した後にフロントエンドから呼ばれる。
+ * WeryAI CDNから動画をダウンロードしてSupabase Storageにアップロード。
+ * video-status で succeed + video_url を確認した後にフロントエンドから呼ばれる。
  */
 export async function POST(req: NextRequest) {
   try {
-    const { video_id, post_id } = await req.json();
+    const { video_url, post_id } = await req.json();
 
-    if (!video_id) {
+    if (!video_url) {
       return NextResponse.json(
-        { error: "video_id は必須です" },
+        { error: "video_url は必須です" },
         { status: 400 }
       );
     }
 
-    const apiKey = await getOpenAIApiKey();
-    const videoUrl = await downloadAndUploadVideo(video_id, apiKey);
+    const uploadedUrl = await downloadAndUploadWeryVideo(video_url);
 
     // post_idがあればDBを更新
     if (post_id) {
       await supabase
         .from("posts")
-        .update({ image_url: videoUrl })
+        .update({ image_url: uploadedUrl })
         .eq("id", post_id);
     }
 
     return NextResponse.json({
       status: "completed",
-      video_url: videoUrl,
+      video_url: uploadedUrl,
     });
   } catch (e: any) {
     console.error("動画ダウンロードエラー:", e);

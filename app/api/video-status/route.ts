@@ -1,30 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkVideoStatus, getOpenAIApiKey } from "@/lib/sora";
+import { checkTaskStatus, getWeryAIApiKey } from "@/lib/weryai";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 /**
- * ステータス確認のみ（軽量）。ダウンロードは /api/video-download で行う。
+ * WeryAI タスクステータス確認（軽量）。ダウンロードは /api/video-download で行う。
  */
 export async function GET(req: NextRequest) {
   try {
-    const videoId = req.nextUrl.searchParams.get("video_id");
+    const taskId = req.nextUrl.searchParams.get("task_id");
 
-    if (!videoId) {
+    if (!taskId) {
       return NextResponse.json(
-        { error: "video_id は必須です" },
+        { error: "task_id は必須です" },
         { status: 400 }
       );
     }
 
-    const apiKey = await getOpenAIApiKey();
-    const result = await checkVideoStatus(videoId, apiKey);
+    const apiKey = await getWeryAIApiKey();
+    const result = await checkTaskStatus(taskId, apiKey);
 
     return NextResponse.json({
       status: result.status,
-      progress: result.progress,
-      video_url: null,
+      video_url: result.videoUrl || null,
       error: result.error || null,
     });
   } catch (e: any) {
