@@ -105,7 +105,7 @@ export async function createTextToVideo(
 ): Promise<{ taskId: string }> {
   const key = options?.apiKey || (await getWeryAIApiKey());
 
-  const data = await weryFetch<{ batch_id: number; task_ids: string[] }>(
+  const data = await weryFetch<{ task_id?: string; task_ids?: string[]; batch_id?: number }>(
     "/v1/generation/text-to-video",
     key,
     {
@@ -121,7 +121,9 @@ export async function createTextToVideo(
     }
   );
 
-  return { taskId: data.task_ids[0] };
+  const taskId = data.task_id || data.task_ids?.[0];
+  if (!taskId) throw new Error("WeryAI: task_id not found in response");
+  return { taskId };
 }
 
 /* ─── Image-to-Video ─── */
@@ -139,7 +141,7 @@ export async function createImageToVideo(
 ): Promise<{ taskId: string }> {
   const key = options?.apiKey || (await getWeryAIApiKey());
 
-  const data = await weryFetch<{ batch_id: number; task_ids: string[] }>(
+  const data = await weryFetch<{ task_id?: string; task_ids?: string[]; batch_id?: number }>(
     "/v1/generation/image-to-video",
     key,
     {
@@ -156,7 +158,9 @@ export async function createImageToVideo(
     }
   );
 
-  return { taskId: data.task_ids[0] };
+  const taskId = data.task_id || data.task_ids?.[0];
+  if (!taskId) throw new Error("WeryAI: task_id not found in response");
+  return { taskId };
 }
 
 /* ─── ステータス確認 ─── */
