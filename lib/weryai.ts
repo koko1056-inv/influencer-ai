@@ -62,12 +62,19 @@ async function weryFetch<T>(
   apiKey: string,
   options?: { method?: string; body?: unknown }
 ): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  // cache-busting for status polling (WeryAI CDN may cache GET responses)
+  const url = options?.method === "GET" || !options?.method
+    ? `${BASE_URL}${path}${path.includes("?") ? "&" : "?"}t=${Date.now()}`
+    : `${BASE_URL}${path}`;
+
+  const res = await fetch(url, {
     method: options?.method || "GET",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      "Cache-Control": "no-cache, no-store",
     },
+    cache: "no-store",
     ...(options?.body ? { body: JSON.stringify(options.body) } : {}),
   });
 
