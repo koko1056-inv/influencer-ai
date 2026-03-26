@@ -162,7 +162,7 @@ async function getMetadataForChannel(
       case "instagram":
         if (options?.isVideo) {
           return {
-            instagram: { type: "reel" },
+            instagram: { type: "reel", shouldShareToFeed: true },
           };
         }
         return {
@@ -296,7 +296,7 @@ export async function createVideoPost(
     mode: "customScheduled",
     dueAt,
     assets: {
-      video: { url: videoUrl },
+      videos: [{ url: videoUrl }],  // videos は配列
     },
   };
   if (metadata) input.metadata = metadata;
