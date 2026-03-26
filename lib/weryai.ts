@@ -72,6 +72,7 @@ async function weryFetch<T>(
   });
 
   const json = await res.json();
+  console.log(`weryFetch ${path}: HTTP ${res.status}, body.status=${json.status}, data=${JSON.stringify(json.data).substring(0, 200)}`);
 
   if (json.status !== 0 && json.status !== 200) {
     throw new Error(

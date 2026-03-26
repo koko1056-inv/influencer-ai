@@ -19,7 +19,9 @@ export async function GET(req: NextRequest) {
     }
 
     const apiKey = await getWeryAIApiKey();
+    console.log(`video-status: taskId=${taskId}, apiKey=${apiKey.substring(0, 10)}...`);
     const result = await checkTaskStatus(taskId, apiKey);
+    console.log(`video-status: result=${JSON.stringify(result)}`);
 
     return NextResponse.json({
       status: result.status,
