@@ -874,6 +874,12 @@ export default function Dashboard() {
   const [igEditingPost, setIgEditingPost] = useState<InstagramCachedPost | null>(null);
   const [igSavingMetrics, setIgSavingMetrics] = useState(false);
 
+  // Analytics report state (shared)
+  const [igReport, setIgReport] = useState<string | null>(null);
+  const [igReportLoading, setIgReportLoading] = useState(false);
+  const [liReport, setLiReport] = useState<string | null>(null);
+  const [liReportLoading, setLiReportLoading] = useState(false);
+
   // Account form state
   const [showAccountForm, setShowAccountForm] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Partial<Account> | null>(null);
@@ -1583,6 +1589,27 @@ export default function Dashboard() {
       showToast(msg, "error");
     }
     setLiSavingMetrics(false);
+  };
+
+  /* ─── Analytics Report Handler ─── */
+  const handleGenerateReport = async (platform: "instagram" | "linkedin") => {
+    const setLoading = platform === "instagram" ? setIgReportLoading : setLiReportLoading;
+    const setReport = platform === "instagram" ? setIgReport : setLiReport;
+    setLoading(true);
+    setReport(null);
+    try {
+      const data = await api<{ report: string }>("/api/analytics-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform }),
+      });
+      setReport(data.report);
+      showToast("AIレポートを生成しました", "success");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "レポート生成に失敗しました";
+      showToast(msg, "error");
+    }
+    setLoading(false);
   };
 
   /* ─── Instagram Analytics Handlers ─── */
@@ -2521,6 +2548,68 @@ export default function Dashboard() {
                     ))}
                   </div>
                 )}
+
+                {/* AI Report Section */}
+                <div style={{ ...s.card, marginTop: 16, borderTop: "2px solid #E1306C40" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: igReport ? 16 : 0 }}>
+                    <div>
+                      <h3 style={{ ...s.cardHeader, marginBottom: 2 }}>AI分析レポート</h3>
+                      <p style={{ fontSize: 12, color: "#52525b" }}>
+                        入力済みデータをもとにAIが投稿戦略を提案します
+                      </p>
+                    </div>
+                    <button
+                      style={{
+                        ...s.btnPrimary,
+                        background: "linear-gradient(135deg, #E1306C, #C13584, #833AB4)",
+                        opacity: igReportLoading || igPastPosts.filter(p => p.impressions > 0).length === 0 ? 0.5 : 1,
+                        pointerEvents: igReportLoading || igPastPosts.filter(p => p.impressions > 0).length === 0 ? "none" : "auto",
+                      }}
+                      onClick={() => handleGenerateReport("instagram")}
+                      disabled={igReportLoading}
+                    >
+                      {igReportLoading ? <div style={s.spinner} /> : Icon.sparkle}
+                      {igReportLoading ? "分析中..." : "AIレポート生成"}
+                    </button>
+                  </div>
+                  {igPastPosts.filter(p => p.impressions > 0).length === 0 && (
+                    <p style={{ fontSize: 12, color: "#71717a", marginTop: 8 }}>
+                      ※ レポート生成にはエンゲージメントデータが入力された投稿が必要です
+                    </p>
+                  )}
+                  {igReportLoading && (
+                    <div style={{ padding: 40, textAlign: "center" }}>
+                      <div style={s.spinner} />
+                      <p style={{ fontSize: 13, color: "#71717a", marginTop: 12 }}>
+                        投稿データを分析してレポートを生成しています...
+                      </p>
+                    </div>
+                  )}
+                  {igReport && !igReportLoading && (
+                    <div style={{
+                      background: "#0c0c14",
+                      border: "1px solid #1a1a24",
+                      borderRadius: 12,
+                      padding: 24,
+                      fontSize: 13,
+                      lineHeight: 1.8,
+                      color: "#d4d4d8",
+                      whiteSpace: "pre-wrap",
+                      maxHeight: 600,
+                      overflow: "auto",
+                    }}>
+                      {igReport.split("\n").map((line, i) => {
+                        if (line.startsWith("## ")) return <h3 key={i} style={{ fontSize: 16, fontWeight: 700, color: "#f4f4f5", marginTop: 20, marginBottom: 8 }}>{line.replace("## ", "")}</h3>;
+                        if (line.startsWith("### ")) return <h4 key={i} style={{ fontSize: 14, fontWeight: 600, color: "#e4e4e7", marginTop: 14, marginBottom: 6 }}>{line.replace("### ", "")}</h4>;
+                        if (line.startsWith("**") && line.endsWith("**")) return <p key={i} style={{ fontWeight: 700, color: "#f4f4f5", marginTop: 8 }}>{line.replace(/\*\*/g, "")}</p>;
+                        if (line.startsWith("- ") || line.startsWith("* ")) return <div key={i} style={{ paddingLeft: 16, position: "relative" }}><span style={{ position: "absolute", left: 0, color: "#E1306C" }}>•</span>{line.replace(/^[-*] /, "")}</div>;
+                        if (line.match(/^\d+\./)) return <div key={i} style={{ paddingLeft: 8, marginTop: 4 }}><span style={{ color: "#E1306C", fontWeight: 700 }}>{line.match(/^\d+\./)?.[0]}</span> {line.replace(/^\d+\.\s*/, "")}</div>;
+                        if (line.trim() === "") return <div key={i} style={{ height: 8 }} />;
+                        return <p key={i}>{line}</p>;
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -3633,6 +3722,68 @@ export default function Dashboard() {
                     ))}
                   </div>
                 )}
+
+                {/* AI Report Section */}
+                <div style={{ ...s.card, marginTop: 16, borderTop: "2px solid #0A66C240" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: liReport ? 16 : 0 }}>
+                    <div>
+                      <h3 style={{ ...s.cardHeader, marginBottom: 2 }}>AI分析レポート</h3>
+                      <p style={{ fontSize: 12, color: "#52525b" }}>
+                        入力済みデータをもとにAIが投稿戦略を提案します
+                      </p>
+                    </div>
+                    <button
+                      style={{
+                        ...s.btnPrimary,
+                        background: "linear-gradient(135deg, #0A66C2, #004182)",
+                        opacity: liReportLoading || liPastPosts.filter(p => p.impressions > 0).length === 0 ? 0.5 : 1,
+                        pointerEvents: liReportLoading || liPastPosts.filter(p => p.impressions > 0).length === 0 ? "none" : "auto",
+                      }}
+                      onClick={() => handleGenerateReport("linkedin")}
+                      disabled={liReportLoading}
+                    >
+                      {liReportLoading ? <div style={s.spinner} /> : Icon.sparkle}
+                      {liReportLoading ? "分析中..." : "AIレポート生成"}
+                    </button>
+                  </div>
+                  {liPastPosts.filter(p => p.impressions > 0).length === 0 && (
+                    <p style={{ fontSize: 12, color: "#71717a", marginTop: 8 }}>
+                      ※ レポート生成にはエンゲージメントデータが入力された投稿が必要です
+                    </p>
+                  )}
+                  {liReportLoading && (
+                    <div style={{ padding: 40, textAlign: "center" }}>
+                      <div style={s.spinner} />
+                      <p style={{ fontSize: 13, color: "#71717a", marginTop: 12 }}>
+                        投稿データを分析してレポートを生成しています...
+                      </p>
+                    </div>
+                  )}
+                  {liReport && !liReportLoading && (
+                    <div style={{
+                      background: "#0c0c14",
+                      border: "1px solid #1a1a24",
+                      borderRadius: 12,
+                      padding: 24,
+                      fontSize: 13,
+                      lineHeight: 1.8,
+                      color: "#d4d4d8",
+                      whiteSpace: "pre-wrap",
+                      maxHeight: 600,
+                      overflow: "auto",
+                    }}>
+                      {liReport.split("\n").map((line, i) => {
+                        if (line.startsWith("## ")) return <h3 key={i} style={{ fontSize: 16, fontWeight: 700, color: "#f4f4f5", marginTop: 20, marginBottom: 8 }}>{line.replace("## ", "")}</h3>;
+                        if (line.startsWith("### ")) return <h4 key={i} style={{ fontSize: 14, fontWeight: 600, color: "#e4e4e7", marginTop: 14, marginBottom: 6 }}>{line.replace("### ", "")}</h4>;
+                        if (line.startsWith("**") && line.endsWith("**")) return <p key={i} style={{ fontWeight: 700, color: "#f4f4f5", marginTop: 8 }}>{line.replace(/\*\*/g, "")}</p>;
+                        if (line.startsWith("- ") || line.startsWith("* ")) return <div key={i} style={{ paddingLeft: 16, position: "relative" }}><span style={{ position: "absolute", left: 0, color: "#0A66C2" }}>•</span>{line.replace(/^[-*] /, "")}</div>;
+                        if (line.match(/^\d+\./)) return <div key={i} style={{ paddingLeft: 8, marginTop: 4 }}><span style={{ color: "#0A66C2", fontWeight: 700 }}>{line.match(/^\d+\./)?.[0]}</span> {line.replace(/^\d+\.\s*/, "")}</div>;
+                        if (line.trim() === "") return <div key={i} style={{ height: 8 }} />;
+                        return <p key={i}>{line}</p>;
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
