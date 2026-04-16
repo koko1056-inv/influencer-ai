@@ -145,6 +145,25 @@ interface LinkedInCachedPost {
   style_tags: string[];
 }
 
+interface InstagramCachedPost {
+  id: string;
+  buffer_post_id: string;
+  text: string;
+  sent_at: string | null;
+  media_type: string;
+  media_url: string | null;
+  impressions: number;
+  reach: number;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  engagement_rate: number;
+  is_top_performer: boolean;
+  style_tags: string[];
+}
+
 type View = "dashboard" | "create" | "instagram" | "tiktok" | "x" | "linkedin" | "accounts" | "history" | "trends" | "settings";
 
 interface OnboardingData {
@@ -847,6 +866,13 @@ export default function Dashboard() {
   const [liSyncing, setLiSyncing] = useState(false);
   const [liEditingPost, setLiEditingPost] = useState<LinkedInCachedPost | null>(null);
   const [liSavingMetrics, setLiSavingMetrics] = useState(false);
+
+  // Instagram analytics state
+  const [igTab, setIgTab] = useState<"create" | "analytics">("create");
+  const [igPastPosts, setIgPastPosts] = useState<InstagramCachedPost[]>([]);
+  const [igSyncing, setIgSyncing] = useState(false);
+  const [igEditingPost, setIgEditingPost] = useState<InstagramCachedPost | null>(null);
+  const [igSavingMetrics, setIgSavingMetrics] = useState(false);
 
   // Account form state
   const [showAccountForm, setShowAccountForm] = useState(false);
@@ -1559,6 +1585,58 @@ export default function Dashboard() {
     setLiSavingMetrics(false);
   };
 
+  /* ─── Instagram Analytics Handlers ─── */
+  const handleIgSyncPosts = async () => {
+    setIgSyncing(true);
+    try {
+      await api<{ synced: number }>("/api/instagram-analytics?action=sync");
+      const data = await api<{ posts: InstagramCachedPost[] }>("/api/instagram-analytics?action=posts");
+      setIgPastPosts(data.posts);
+      showToast(`${data.posts.length}件のInstagram投稿を同期しました`, "success");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "同期に失敗しました";
+      showToast(msg, "error");
+    }
+    setIgSyncing(false);
+  };
+
+  const handleIgFetchPosts = async () => {
+    try {
+      const data = await api<{ posts: InstagramCachedPost[] }>("/api/instagram-analytics?action=posts");
+      setIgPastPosts(data.posts);
+    } catch { /* ignore */ }
+  };
+
+  const handleIgSaveMetrics = async (post: InstagramCachedPost) => {
+    setIgSavingMetrics(true);
+    try {
+      await api("/api/instagram-analytics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: post.id,
+          impressions: post.impressions,
+          reach: post.reach,
+          views: post.views,
+          likes: post.likes,
+          comments: post.comments,
+          shares: post.shares,
+          saves: post.saves,
+          media_type: post.media_type,
+          style_tags: post.style_tags,
+          is_top_performer: post.is_top_performer,
+        }),
+      });
+      showToast("エンゲージメントデータを保存しました", "success");
+      setIgEditingPost(null);
+      handleIgFetchPosts();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "保存に失敗しました";
+      showToast(msg, "error");
+    }
+    setIgSavingMetrics(false);
+  };
+
   const handleLiRefImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -2103,8 +2181,9 @@ export default function Dashboard() {
               {platformFilter && (
                 <div style={{ display: "flex", gap: 4, background: "#0f0f18", borderRadius: 10, padding: 4, border: "1px solid #1a1a24" }}>
                   {(isIG ? [
-                    { id: "feed", label: "フィード", active: !videoMode },
-                    { id: "reels", label: "リール", active: videoMode },
+                    { id: "feed", label: "フィード", active: igTab === "create" && !videoMode },
+                    { id: "reels", label: "リール", active: igTab === "create" && videoMode },
+                    { id: "analytics", label: "分析", active: igTab === "analytics" },
                   ] : isTT ? [
                     { id: "video", label: "動画", active: videoMode },
                   ] : isX ? [
@@ -2126,8 +2205,14 @@ export default function Dashboard() {
                       }}
                       onClick={() => {
                         if (isIG) {
-                          setVideoMode(tab.id === "reels");
-                          setTextOnly(false);
+                          if (tab.id === "analytics") {
+                            setIgTab("analytics");
+                            if (igPastPosts.length === 0) handleIgFetchPosts();
+                          } else {
+                            setIgTab("create");
+                            setVideoMode(tab.id === "reels");
+                            setTextOnly(false);
+                          }
                         } else if (isTT) {
                           setVideoMode(true);
                           setTextOnly(false);
@@ -2171,7 +2256,276 @@ export default function Dashboard() {
               </div>
             )}
 
-            {platformFilter && filteredAccounts.length === 0 && (
+            {/* ─── Instagram Analytics Tab ─── */}
+            {isIG && igTab === "analytics" && (
+              <div>
+                {/* Sync bar */}
+                <div style={{ ...s.card, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "#f4f4f5" }}>
+                      過去のInstagram投稿 ({igPastPosts.length}件)
+                    </span>
+                    <span style={{ fontSize: 12, color: "#52525b", marginLeft: 12 }}>
+                      エンゲージメントデータを入力して投稿パフォーマンスを可視化
+                    </span>
+                  </div>
+                  <button
+                    style={{ ...s.btnPrimary, background: "linear-gradient(135deg, #E1306C, #C13584)" }}
+                    onClick={handleIgSyncPosts}
+                    disabled={igSyncing}
+                  >
+                    {igSyncing ? <div style={s.spinner} /> : Icon.refresh}
+                    {igSyncing ? "同期中..." : "Bufferから同期"}
+                  </button>
+                </div>
+
+                {/* Stats summary */}
+                {igPastPosts.some((p) => p.impressions > 0) && (
+                  <div style={{ ...s.statGrid, marginTop: 0 }}>
+                    <div style={s.statCard("#E1306C")}>
+                      <div style={{ fontSize: 12, color: "#71717a", marginBottom: 4 }}>平均エンゲージメント率</div>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: "#f472b6" }}>
+                        {(igPastPosts.filter(p => p.engagement_rate > 0).reduce((sm, p) => sm + p.engagement_rate, 0) / Math.max(igPastPosts.filter(p => p.engagement_rate > 0).length, 1)).toFixed(1)}%
+                      </div>
+                    </div>
+                    <div style={s.statCard("#8b5cf6")}>
+                      <div style={{ fontSize: 12, color: "#71717a", marginBottom: 4 }}>合計リーチ</div>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: "#a78bfa" }}>
+                        {igPastPosts.reduce((sm, p) => sm + (p.reach || 0), 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={s.statCard("#22c55e")}>
+                      <div style={{ fontSize: 12, color: "#71717a", marginBottom: 4 }}>合計いいね</div>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: "#4ade80" }}>
+                        {igPastPosts.reduce((sm, p) => sm + (p.likes || 0), 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={s.statCard("#f59e0b")}>
+                      <div style={{ fontSize: 12, color: "#71717a", marginBottom: 4 }}>保存数</div>
+                      <div style={{ fontSize: 28, fontWeight: 800, color: "#fbbf24" }}>
+                        {igPastPosts.reduce((sm, p) => sm + (p.saves || 0), 0).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Media type breakdown */}
+                {igPastPosts.length > 0 && igPastPosts.some((p) => p.impressions > 0) && (() => {
+                  const reels = igPastPosts.filter(p => p.media_type === "reel" && p.engagement_rate > 0);
+                  const images = igPastPosts.filter(p => p.media_type === "image" && p.engagement_rate > 0);
+                  const carousels = igPastPosts.filter(p => p.media_type === "carousel" && p.engagement_rate > 0);
+                  const avgRate = (arr: InstagramCachedPost[]) => arr.length > 0
+                    ? (arr.reduce((sm, p) => sm + p.engagement_rate, 0) / arr.length).toFixed(1) : "—";
+                  return (
+                    <div style={{ ...s.card, marginTop: 0 }}>
+                      <h3 style={{ ...s.cardHeader, fontSize: 14 }}>メディアタイプ別パフォーマンス</h3>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+                        {[
+                          { label: "リール", count: reels.length, avg: avgRate(reels), color: "#E1306C", icon: "🎬" },
+                          { label: "画像", count: images.length, avg: avgRate(images), color: "#8b5cf6", icon: "📸" },
+                          { label: "カルーセル", count: carousels.length, avg: avgRate(carousels), color: "#f59e0b", icon: "📋" },
+                        ].map((mt) => (
+                          <div key={mt.label} style={{
+                            padding: 16,
+                            background: `${mt.color}08`,
+                            border: `1px solid ${mt.color}20`,
+                            borderRadius: 10,
+                            textAlign: "center",
+                          }}>
+                            <div style={{ fontSize: 24, marginBottom: 4 }}>{mt.icon}</div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "#f4f4f5" }}>{mt.label}</div>
+                            <div style={{ fontSize: 12, color: "#71717a", marginTop: 2 }}>{mt.count}件</div>
+                            <div style={{ fontSize: 20, fontWeight: 800, color: mt.color, marginTop: 4 }}>
+                              {mt.avg}%
+                            </div>
+                            <div style={{ fontSize: 10, color: "#52525b" }}>平均ER</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Editing modal */}
+                {igEditingPost && (
+                  <div style={{ ...s.card, border: "2px solid #E1306C", marginBottom: 20 }}>
+                    <h3 style={{ ...s.cardHeader, fontSize: 15 }}>エンゲージメントデータ入力</h3>
+                    <div style={{
+                      padding: 12,
+                      background: "#0c0c12",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      color: "#a1a1aa",
+                      marginBottom: 16,
+                      maxHeight: 100,
+                      overflow: "hidden",
+                      lineHeight: 1.6,
+                    }}>
+                      {igEditingPost.text.substring(0, 200)}{igEditingPost.text.length > 200 ? "..." : ""}
+                    </div>
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={{ ...s.label, fontSize: 12 }}>メディアタイプ</label>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        {[
+                          { id: "image", label: "画像" },
+                          { id: "reel", label: "リール" },
+                          { id: "carousel", label: "カルーセル" },
+                        ].map((mt) => (
+                          <button
+                            key={mt.id}
+                            style={{
+                              padding: "6px 14px",
+                              borderRadius: 8,
+                              border: igEditingPost.media_type === mt.id ? "2px solid #E1306C" : "1px solid #2a2a3a",
+                              background: igEditingPost.media_type === mt.id ? "#E1306C18" : "#0c0c12",
+                              color: igEditingPost.media_type === mt.id ? "#f472b6" : "#71717a",
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                            }}
+                            onClick={() => setIgEditingPost({ ...igEditingPost, media_type: mt.id })}
+                          >
+                            {mt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+                      {[
+                        { key: "impressions", label: "インプレッション", icon: "👀" },
+                        { key: "reach", label: "リーチ", icon: "📡" },
+                        { key: "likes", label: "いいね", icon: "❤️" },
+                        { key: "comments", label: "コメント", icon: "💬" },
+                        { key: "shares", label: "シェア", icon: "🔄" },
+                        { key: "saves", label: "保存", icon: "🔖" },
+                        { key: "views", label: "再生回数", icon: "▶️" },
+                      ].map((field) => (
+                        <div key={field.key} style={s.formGroup}>
+                          <label style={{ ...s.label, fontSize: 11 }}>{field.icon} {field.label}</label>
+                          <input
+                            type="number"
+                            style={{ ...s.input, fontSize: 14 }}
+                            value={(igEditingPost as any)[field.key] || 0}
+                            onChange={(e) => setIgEditingPost({
+                              ...igEditingPost,
+                              [field.key]: parseInt(e.target.value) || 0,
+                            })}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div style={s.formGroup}>
+                      <label style={{ ...s.label, fontSize: 12 }}>スタイルタグ（カンマ区切り）</label>
+                      <input
+                        style={s.input}
+                        placeholder="例: リール, ビフォーアフター, チュートリアル, Vlog"
+                        value={(igEditingPost.style_tags || []).join(", ")}
+                        onChange={(e) => setIgEditingPost({
+                          ...igEditingPost,
+                          style_tags: e.target.value.split(",").map((t) => t.trim()).filter(Boolean),
+                        })}
+                      />
+                    </div>
+                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                      <button
+                        style={{ ...s.btnPrimary, background: "linear-gradient(135deg, #E1306C, #C13584)" }}
+                        onClick={() => handleIgSaveMetrics(igEditingPost)}
+                        disabled={igSavingMetrics}
+                      >
+                        {igSavingMetrics ? <div style={s.spinner} /> : Icon.check}
+                        保存
+                      </button>
+                      <button style={s.btnSecondary} onClick={() => setIgEditingPost(null)}>
+                        キャンセル
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Posts list */}
+                {igPastPosts.length === 0 ? (
+                  <div style={{ ...s.card, ...s.empty }}>
+                    <p style={{ fontSize: 14, marginBottom: 12 }}>まだ投稿データがありません</p>
+                    <p style={{ fontSize: 12 }}>「Bufferから同期」ボタンでInstagramの過去投稿を取得してください</p>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {igPastPosts.map((post) => (
+                      <div
+                        key={post.id}
+                        style={{
+                          ...s.card,
+                          marginBottom: 0,
+                          cursor: "pointer",
+                          border: post.is_top_performer ? "1px solid #E1306C40" : "1px solid #1a1a24",
+                          background: post.is_top_performer ? "#E1306C08" : "#0f0f18",
+                        }}
+                        onClick={() => setIgEditingPost({ ...post })}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                              <span style={{
+                                ...s.tag(post.media_type === "reel" ? "#E1306C" : post.media_type === "carousel" ? "#f59e0b" : "#8b5cf6"),
+                                fontSize: 10,
+                              }}>
+                                {post.media_type === "reel" ? "🎬 リール" : post.media_type === "carousel" ? "📋 カルーセル" : "📸 画像"}
+                              </span>
+                              {post.is_top_performer && (
+                                <span style={{ ...s.tag("#22c55e"), fontSize: 10 }}>🏆 トップ</span>
+                              )}
+                            </div>
+                            <div style={{
+                              fontSize: 13,
+                              color: "#d4d4d8",
+                              lineHeight: 1.6,
+                              overflow: "hidden",
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical" as any,
+                            }}>
+                              {post.text}
+                            </div>
+                            <div style={{ fontSize: 11, color: "#52525b", marginTop: 6 }}>
+                              {post.sent_at ? new Date(post.sent_at).toLocaleDateString("ja-JP") : "日付不明"}
+                              {post.style_tags && post.style_tags.length > 0 && (
+                                <span style={{ marginLeft: 8 }}>
+                                  {post.style_tags.map((tag, i) => (
+                                    <span key={i} style={{
+                                      ...s.tag("#E1306C"),
+                                      marginLeft: 4,
+                                      fontSize: 10,
+                                    }}>{tag}</span>
+                                  ))}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {post.impressions > 0 ? (
+                            <div style={{ marginLeft: 16, textAlign: "right", flexShrink: 0 }}>
+                              <div style={{ fontSize: 20, fontWeight: 800, color: post.engagement_rate > 5 ? "#4ade80" : post.engagement_rate > 2 ? "#fbbf24" : "#f4f4f5" }}>
+                                {post.engagement_rate.toFixed(1)}%
+                              </div>
+                              <div style={{ fontSize: 10, color: "#71717a" }}>エンゲージメント率</div>
+                              <div style={{ fontSize: 11, color: "#52525b", marginTop: 4 }}>
+                                ❤️{post.likes} 💬{post.comments} 🔖{post.saves}
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ marginLeft: 16, flexShrink: 0 }}>
+                              <span style={s.tag("#6366f1")}>データ未入力</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ─── Create Content (hidden when IG analytics tab is active) ─── */}
+            {!(isIG && igTab === "analytics") && platformFilter && filteredAccounts.length === 0 && (
               <div style={{ ...s.card, textAlign: "center", padding: 40, marginBottom: 24 }}>
                 <p style={{ fontSize: 16, color: "#71717a", marginBottom: 16 }}>
                   {PLATFORM_LABELS[platformFilter]}のアカウントがまだ登録されていません
@@ -2182,7 +2536,7 @@ export default function Dashboard() {
               </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+            {!(isIG && igTab === "analytics") && (<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
               {/* Left: Generation form */}
               <div style={{ ...s.card, borderTop: platformFilter ? `2px solid ${platformColor}40` : undefined }}>
                 <h3 style={s.cardHeader}>
@@ -3015,7 +3369,7 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
-            </div>
+            </div>)}
           </>
           );
         })()}
